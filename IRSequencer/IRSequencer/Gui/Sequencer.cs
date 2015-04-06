@@ -22,7 +22,7 @@ namespace IRSequencer.Gui
     {
         public bool guiHidden = false;
 
-        public bool GUIEnabled = true;
+        public bool GUIEnabled = false;
         public bool guiSequenceEditor = false;
         private bool isReady = false;
 
@@ -159,23 +159,21 @@ namespace IRSequencer.Gui
                 name = "Copy of " + baseSequence.name;
             }
 
-            public void Start()
+            public void Resume(int commandIndex)
             {
-                Logger.Log("[Sequencer] Sequence started", Logger.Level.Debug);
+                Logger.Log("[Sequencer] Sequence resumed from index " + commandIndex, Logger.Level.Debug);
 
                 if (commands == null) return;
 
                 isActive = true;
 
                 //find first unfinished command
-                lastCommandIndex = commands.IndexOf(commands.Find(s => s.isFinished == false));
-                Logger.Log("[Sequencer] First unfinished Index = " + lastCommandIndex, Logger.Level.Debug);
+                lastCommandIndex = commandIndex;
                 if (lastCommandIndex == -1)
                     return;
 
                 //now we can start/continue execution
                 //we execute commands until first wait command
-
                 var nextWaitCommandIndex = commands.FindIndex(lastCommandIndex, s => s.wait == true);
                 if (nextWaitCommandIndex == -1)
                 {
@@ -199,6 +197,29 @@ namespace IRSequencer.Gui
                     isWaiting = true;
                     Logger.Log("[Sequencer] Sequence is waiting, lastCommandIndex = " + lastCommandIndex, Logger.Level.Debug);
                 }
+
+                Logger.Log("[Sequencer] Sequence Resume finished, lastCommandIndex = " + lastCommandIndex, Logger.Level.Debug);
+                //else we are either finished, or most likely waiting for commands to finish.
+            }
+
+            public void Start()
+            {
+                Logger.Log("[Sequencer] Sequence started", Logger.Level.Debug);
+
+                if (commands == null) return;
+
+                isActive = true;
+
+                //find first unfinished command
+                lastCommandIndex = commands.IndexOf(commands.Find(s => s.isFinished == false));
+                Logger.Log("[Sequencer] First unfinished Index = " + lastCommandIndex, Logger.Level.Debug);
+                if (lastCommandIndex == -1)
+                    return;
+
+                //now we can start/continue execution
+                //we execute commands until first wait command
+
+                Resume(lastCommandIndex);
 
                 Logger.Log("[Sequencer] Sequence Start finished, lastCommandIndex = " + lastCommandIndex, Logger.Level.Debug);
                 //else we are either finished, or most likely waiting for commands to finish.
@@ -322,6 +343,10 @@ namespace IRSequencer.Gui
                     }
                 }
 
+                //need to calculate if there are any active waiting commands
+                var activeWaitCount = activeCommands.Count(t => t.wait && t.isActive);
+                if (activeWaitCount == 0) sq.isWaiting = false;
+
                 if (sq.isWaiting)
                 {
                     if (sq.commands[sq.lastCommandIndex].wait && sq.commands[sq.lastCommandIndex].waitTime == 0f)
@@ -352,6 +377,12 @@ namespace IRSequencer.Gui
                         }
                         else
                             sq.SetFinished();
+                    }
+                    else
+                    {
+                        //sequence was delayed  and should continue from the place of last delay 
+                        //problem is that we should not seek first unfinished but resume execution from lastCommandIndex
+                        sq.Resume(sq.lastCommandIndex+1);
                     }
                 }
             }
