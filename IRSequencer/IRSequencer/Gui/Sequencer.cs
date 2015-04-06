@@ -22,7 +22,7 @@ namespace IRSequencer.Gui
     {
         public bool guiHidden = false;
 
-        public bool GUIEnabled = false;
+        public bool GUIEnabled = true;
         public bool guiSequenceEditor = false;
         private bool isReady = false;
 
@@ -266,7 +266,7 @@ namespace IRSequencer.Gui
                 try
                 {
                     var texture = new Texture2D(36, 36, TextureFormat.RGBA32, false);
-                    TextureLoader.LoadImageFromFile(texture, "icon_button");
+                    TextureLoader.LoadImageFromFile(texture, "presetmode");
                     
                     appLauncherButton = ApplicationLauncher.Instance.AddModApplication(delegate { GUIEnabled = true; },
                         delegate { GUIEnabled = false; }, null, null, null, null,
@@ -371,7 +371,25 @@ namespace IRSequencer.Gui
             sequences = new List<Sequence>();
             sequences.Clear();
 
+            InitTextures();
+
+            GameEvents.onGUIApplicationLauncherReady.Add(OnAppReady);
+            
             Logger.Log("[Sequencer] Awake successful", Logger.Level.Debug);
+        }
+        
+        public void Start()
+        {
+            try
+            {
+                IRWrapper.InitWrapper();
+            }
+            catch (Exception e)
+            {
+                Logger.Log("[Sequencer] Exception while initialising API " + e.Message, Logger.Level.Debug);
+            }
+
+            Logger.Log("[Sequencer] Start successful", Logger.Level.Debug);
         }
 
         private void OnShowUI()
@@ -391,6 +409,22 @@ namespace IRSequencer.Gui
 
             Sequencer.Instance.isReady = false;
             SaveConfigXml();
+
+            try
+            {
+                GameEvents.onGUIApplicationLauncherReady.Remove(OnAppReady);
+
+                if (appLauncherButton != null && ApplicationLauncher.Instance != null)
+                {
+                    ApplicationLauncher.Instance.RemoveModApplication(appLauncherButton);
+                    appLauncherButton = null;
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.Log("[Sequencer] Failed unregistering AppLauncher handlers," + e.Message);
+            }
+
             Logger.Log("[Sequencer] Destroy successful", Logger.Level.Debug);
         }
 
@@ -469,7 +503,7 @@ namespace IRSequencer.Gui
             GUILayout.BeginHorizontal();
 
             GUILayout.Label("Sequence Name", GUILayout.ExpandWidth(true), GUILayout.Height(22));
-            GUILayout.Label("Controls", GUILayout.Width(200), GUILayout.Height(22));
+            GUILayout.Label("Controls", GUILayout.Width(250), GUILayout.Height(22));
 
             GUILayout.EndHorizontal();
 
@@ -480,33 +514,33 @@ namespace IRSequencer.Gui
                 GUILayout.BeginHorizontal();
                 sq.name = GUILayout.TextField(sq.name, GUILayout.ExpandWidth(true), GUILayout.Height(22));
 
-                if (GUILayout.Button("Run", buttonStyle, GUILayout.Width(30), GUILayout.Height(22)))
+                if (GUILayout.Button("Run", buttonStyle, GUILayout.Width(40), GUILayout.Height(22)))
                 {
                     sq.Start();
                 }
 
-                if (GUILayout.Button("Pause", buttonStyle, GUILayout.Width(30), GUILayout.Height(22)))
+                if (GUILayout.Button("Pause", buttonStyle, GUILayout.Width(40), GUILayout.Height(22)))
                 {
                     sq.Pause();
                 }
 
-                if (GUILayout.Button("Reset", buttonStyle, GUILayout.Width(30), GUILayout.Height(22)))
+                if (GUILayout.Button("Reset", buttonStyle, GUILayout.Width(40), GUILayout.Height(22)))
                 {
                     sq.Reset();
                 }
 
-                if (GUILayout.Button("Edit", buttonStyle, GUILayout.Width(30), GUILayout.Height(22)))
+                if (GUILayout.Button("Edit", buttonStyle, GUILayout.Width(40), GUILayout.Height(22)))
                 {
                     openSequence = sq;
                     guiSequenceEditor = !guiSequenceEditor;
                 }
 
-                if (GUILayout.Button("Clone", buttonStyle, GUILayout.Width(30), GUILayout.Height(22)))
+                if (GUILayout.Button("Clone", buttonStyle, GUILayout.Width(40), GUILayout.Height(22)))
                 {
                     sequences.Add(new Sequence(sq));
                 }
 
-                if (GUILayout.Button("Del", buttonStyle, GUILayout.Width(30), GUILayout.Height(22)))
+                if (GUILayout.Button("Del", buttonStyle, GUILayout.Width(40), GUILayout.Height(22)))
                 {
                     sq.Pause();
                     sq.Reset();
@@ -549,7 +583,7 @@ namespace IRSequencer.Gui
             GUILayoutOption maxHeight = GUILayout.MaxHeight(Screen.height * 0.5f);
 
             servoListScroll = GUILayout.BeginScrollView(servoListScroll, false, false, maxHeight);
-            GUILayout.BeginVertical(GUILayout.Width(120));
+            GUILayout.BeginVertical(GUILayout.Width(200));
             
             List<IRWrapper.IRAPI.IRServo> allServos = new List<IRWrapper.IRAPI.IRServo>();
 
@@ -631,9 +665,13 @@ namespace IRSequencer.Gui
             GUILayout.BeginHorizontal();
 
             GUILayout.Label("Selected servo: " + activeServo.Name, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-            
+            Rect last = GUILayoutUtility.GetLastRect();
+            Vector2 pos = Event.current.mousePosition;
+            bool highlight = last.Contains(pos);
+            activeServo.Highlight = highlight;
+
             GUILayout.EndHorizontal();
-            GUILayout.BeginHorizontal();
+            /*GUILayout.BeginHorizontal();
 
             GUILayout.Label("Presets:", GUILayout.Width(50), GUILayout.Height(22));
             foreach (float p in activeServo.PresetPositions)
@@ -644,10 +682,10 @@ namespace IRSequencer.Gui
                     openSequence.commands.Add(newCommand);
                 }
             }
-            GUILayout.EndHorizontal();
+            GUILayout.EndHorizontal();*/
             GUILayout.BeginHorizontal();
 
-            GUILayout.Label("Custom:", GUILayout.Width(50), GUILayout.Height(22));
+            GUILayout.Label("Position:", GUILayout.Width(50), GUILayout.Height(22));
             string tmpString;
             float tmpValue;
             tmpString = GUILayout.TextField(string.Format("{0:#0.0#}", currentPosition), GUILayout.Width(40), GUILayout.Height(22));
@@ -655,18 +693,21 @@ namespace IRSequencer.Gui
             {
                 currentPosition = tmpValue;
             }
-            if (GUILayout.Button("Add", buttonStyle, GUILayout.Height(22)))
-            {
-                var newCommand = new BasicCommand(activeServo, currentPosition, activeServo.Speed * currentSpeedMultiplier);
-                openSequence.commands.Add(newCommand);
-            }
-            
+
             GUILayout.Label("Speed:", GUILayout.Width(50), GUILayout.Height(22));
             tmpString = GUILayout.TextField(string.Format("{0:#0.0#}", currentSpeedMultiplier), GUILayout.Width(40), GUILayout.Height(22));
             if (float.TryParse(tmpString, out tmpValue))
             {
                 currentSpeedMultiplier = Mathf.Clamp(tmpValue, 0.05f, 1000f);
             }
+
+            if (GUILayout.Button("Add Command", buttonStyle, GUILayout.Height(22)))
+            {
+                var newCommand = new BasicCommand(activeServo, currentPosition, activeServo.Speed * currentSpeedMultiplier);
+                openSequence.commands.Add(newCommand);
+            }
+            
+            
             GUILayout.EndHorizontal();
             GUILayout.BeginHorizontal();
 
@@ -841,7 +882,7 @@ namespace IRSequencer.Gui
                     SequencerEditorWindowPos = GUILayout.Window(SequencerEditorWindowID, SequencerEditorWindowPos,
                     SequencerEditorWindow,
                     "Edit Sequence",
-                    GUILayout.Width(500),
+                    GUILayout.Width(600),
                     GUILayout.Height(height));
                 }
             }
