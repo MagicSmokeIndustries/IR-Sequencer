@@ -265,8 +265,8 @@ namespace IRSequencer.Gui
             {
                 try
                 {
-                    var texture = new Texture2D(36, 36, TextureFormat.RGBA32, false);
-                    TextureLoader.LoadImageFromFile(texture, "presetmode");
+                    var texture = new Texture2D(32, 32, TextureFormat.RGBA32, false);
+                    TextureLoader.LoadImageFromFile(texture, "presetmode.png");
                     
                     appLauncherButton = ApplicationLauncher.Instance.AddModApplication(delegate { GUIEnabled = true; },
                         delegate { GUIEnabled = false; }, null, null, null, null,
