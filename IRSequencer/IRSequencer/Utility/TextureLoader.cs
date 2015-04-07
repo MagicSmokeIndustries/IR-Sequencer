@@ -9,8 +9,6 @@ namespace IRSequencer.Utility
     {
         private static bool isReady;
         internal static Texture2D EditorBackgroundText { get; private set; }
-        internal static Texture2D StopButtonIcon { get; private set; }
-        internal static Texture2D CogButtonIcon { get; private set; }
 
         internal static Texture2D ExpandIcon { get; private set; }
         internal static Texture2D CollapseIcon { get; private set; }
@@ -27,10 +25,15 @@ namespace IRSequencer.Utility
         internal static Texture2D PresetModeIcon { get; private set; }
         internal static Texture2D LockedIcon { get; private set; }
         internal static Texture2D UnlockedIcon { get; private set; }
-        internal static Texture2D InvertedIcon { get; private set; }
-        internal static Texture2D NoninvertedIcon { get; private set; }
         internal static Texture2D NextIcon { get; private set; }
         internal static Texture2D PrevIcon { get; private set; }
+
+        internal static Texture2D PlayIcon { get; private set; }
+        internal static Texture2D PauseIcon { get; private set; }
+        internal static Texture2D StopIcon { get; private set; }
+        internal static Texture2D EditIcon { get; private set; }
+
+        internal static Texture2D BgIcon { get; private set; }
 
         protected static TextureLoader LoaderInstance;
 
@@ -49,12 +52,6 @@ namespace IRSequencer.Utility
             if (!isReady)
             {
                 EditorBackgroundText = CreateTextureFromColor(1, 1, new Color32(81, 86, 94, 255));
-
-                StopButtonIcon = new Texture2D(32, 32, TextureFormat.RGBA32, false);
-                LoadImageFromFile(StopButtonIcon, "icon_stop.png");
-
-                CogButtonIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
-                LoadImageFromFile(CogButtonIcon, "icon_cog.png");
 
                 ExpandIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
                 LoadImageFromFile(ExpandIcon, "expand.png");
@@ -101,17 +98,26 @@ namespace IRSequencer.Utility
                 UnlockedIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
                 LoadImageFromFile(UnlockedIcon, "unlocked.png");
 
-                InvertedIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
-                LoadImageFromFile(InvertedIcon, "inverted.png");
-
-                NoninvertedIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
-                LoadImageFromFile(NoninvertedIcon, "noninverted.png");
-
                 NextIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
                 LoadImageFromFile(NextIcon, "next.png");
 
                 PrevIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
                 LoadImageFromFile(PrevIcon, "prev.png");
+
+                BgIcon = new Texture2D(9, 9, TextureFormat.ARGB32, false);
+                LoadImageFromFile(PrevIcon, "icon_background.png");
+
+                PlayIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
+                LoadImageFromFile(PlayIcon, "play.png");
+
+                PauseIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
+                LoadImageFromFile(PauseIcon, "pause.png");
+
+                StopIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
+                LoadImageFromFile(StopIcon, "stop.png");
+
+                EditIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
+                LoadImageFromFile(EditIcon, "edit.png");
 
                 isReady = true;
             }

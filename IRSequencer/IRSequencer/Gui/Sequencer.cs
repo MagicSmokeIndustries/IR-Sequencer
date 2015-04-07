@@ -35,10 +35,16 @@ namespace IRSequencer.Gui
         private float tooltipTime;
         private const float TOOLTIP_MAX_TIME = 8f;
         private const float TOOLTIP_DELAY = 1.5f;
+        private static GUIStyle tooltipStyle;
+        private static GUIStyle buttonStyle;
+        private static GUIStyle nameStyle;
+        private static GUIStyle dotStyle;
 
-        private float currentSpeedMultiplier = 1.0f;
+        private static Color solidColor;
+        private static Color opaqueColor;
+
         private float currentDelay = 1.0f;
-        private float currentPosition = 0f;
+        private int currentMode = 0;
 
 
         protected static Rect SequencerWindowPos;
@@ -47,6 +53,7 @@ namespace IRSequencer.Gui
         protected static int SequencerEditorWindowID;
 
         protected static Vector2 servoListScroll;
+        protected static Vector2 actionListScroll;
         protected static Vector2 commandListScroll;
 
         protected static Sequencer SequencerInstance;
@@ -61,7 +68,8 @@ namespace IRSequencer.Gui
         private List<Sequence> sequences;
 
         private Sequence openSequence;
-        private IRWrapper.IRAPI.IRServo activeServo;
+
+        private List<BasicCommand> availableServoCommands;
 
         static Sequencer()
         {
@@ -80,6 +88,7 @@ namespace IRSequencer.Gui
             public float speedMultiplier;
             public bool isActive = false;
             public bool isFinished = false;
+            public KSPActionGroup ag = KSPActionGroup.None;
 
             public BasicCommand(IRWrapper.IRAPI.IRServo s, float p, float sp)
             {
@@ -102,15 +111,39 @@ namespace IRSequencer.Gui
                 waitTime = t;
             }
 
+            public BasicCommand(KSPActionGroup g) : this(false)
+            {
+                ag = g;
+            }
+
+            public BasicCommand(BasicCommand clone)
+            {
+                servo = clone.servo;
+                position = clone.position;
+                speedMultiplier = clone.speedMultiplier;
+                wait = clone.wait;
+                waitTime = clone.waitTime;
+                ag = clone.ag;
+            }
+
             public void Execute()
             {
                 isActive = true;
                 timeStarted = UnityEngine.Time.time;
 
+                if (ag != KSPActionGroup.None)
+                {
+                    FlightGlobals.ActiveVessel.ActionGroups.ToggleGroup (ag);
+                    isActive = false;
+                    isFinished = true;
+                    Logger.Log("[Sequencer] Firing ActionGroup = " + ag.ToString(), Logger.Level.Debug);
+                    return;
+                }
+
                 if (wait)
                 {
-                    //do nothing, we should not get here ever
-                    //Logger.Log("[Sequencer] Error, should not execute wait command", Logger.Level.Debug);
+                    //wait commands are dealt with separately in FixedUpdate
+                    //all we had to do is mark it as Active and set Timestamp, as we did above
                 }
                 else
                 {
@@ -139,7 +172,8 @@ namespace IRSequencer.Gui
             public int lastCommandIndex = -1;
             public bool isActive = false;
             public bool isFinished = false;
-            public bool isWaiting = false;
+            public bool isWaiting = false; 
+            public bool isLocked = false; //sequence is Locked if any of the servos in its commands list are busy
             public string name = "";
 
             public Sequence ()
@@ -165,6 +199,12 @@ namespace IRSequencer.Gui
 
                 if (commands == null) return;
 
+                if (isLocked)
+                {
+                    Logger.Log ("[Sequencer] Cannot resume sequence " + name + " as it is Locked", Logger.Level.Debug);
+                    return;
+                }
+
                 isActive = true;
 
                 //find first unfinished command
@@ -174,7 +214,7 @@ namespace IRSequencer.Gui
 
                 //now we can start/continue execution
                 //we execute commands until first wait command
-                var nextWaitCommandIndex = commands.FindIndex(lastCommandIndex, s => s.wait == true);
+                var nextWaitCommandIndex = commands.FindIndex(lastCommandIndex, s => s.wait);
                 if (nextWaitCommandIndex == -1)
                 {
                     //there are no Waits left, execute all the rest;
@@ -198,6 +238,7 @@ namespace IRSequencer.Gui
                     Logger.Log("[Sequencer] Sequence is waiting, lastCommandIndex = " + lastCommandIndex, Logger.Level.Debug);
                 }
 
+
                 Logger.Log("[Sequencer] Sequence Resume finished, lastCommandIndex = " + lastCommandIndex, Logger.Level.Debug);
                 //else we are either finished, or most likely waiting for commands to finish.
             }
@@ -208,10 +249,16 @@ namespace IRSequencer.Gui
 
                 if (commands == null) return;
 
+                if (isLocked)
+                {
+                    Logger.Log ("[Sequencer] Cannot start sequence " + name + " as it is Locked", Logger.Level.Debug);
+                    return;
+                }
+
                 isActive = true;
 
                 //find first unfinished command
-                lastCommandIndex = commands.IndexOf(commands.Find(s => s.isFinished == false));
+                lastCommandIndex = commands.FindIndex(s => s.isFinished == false);
                 Logger.Log("[Sequencer] First unfinished Index = " + lastCommandIndex, Logger.Level.Debug);
                 if (lastCommandIndex == -1)
                     return;
@@ -271,12 +318,48 @@ namespace IRSequencer.Gui
 
         /// <summary>
         ///     Load the textures from files to memory
+        ///     Initialise Styles
         /// </summary>
-        private static void InitTextures()
+        private static void InitGUI()
         {
             if (!GUISetupDone)
             {
                 TextureLoader.InitTextures();
+
+                tooltipStyle = new GUIStyle
+                {
+                    fontSize = 12,
+                    fontStyle = FontStyle.Bold,
+                    normal =
+                    {
+                        textColor = new Color32(207, 207, 207, 255),
+                        background = TextureLoader.BgIcon
+                    },
+                    stretchHeight = true,
+                    border = new RectOffset(3, 3, 3, 3),
+                    padding = new RectOffset(4, 4, 6, 4),
+                    alignment = TextAnchor.MiddleLeft
+                };
+
+                buttonStyle = new GUIStyle(GUI.skin.button);
+                buttonStyle.padding =  new RectOffset(2, 2, 2, 2);;
+                buttonStyle.alignment = TextAnchor.MiddleCenter;
+
+                nameStyle = new GUIStyle(GUI.skin.label)
+                {
+                    alignment = TextAnchor.MiddleLeft,
+                    wordWrap = true,
+                    clipping = TextClipping.Overflow
+                };
+
+                dotStyle = new GUIStyle(GUI.skin.label)
+                {
+                    richText = true,
+                    alignment = TextAnchor.MiddleCenter
+                };
+
+                solidColor = new Color (1, 1, 1, 1);
+                opaqueColor = new Color (1, 1, 1, 0.6f);
             }
         }
 
@@ -308,15 +391,28 @@ namespace IRSequencer.Gui
             if (!isEnabled || sequences == null)
                 return;
 
-            var activeSequences = sequences.FindAll(s => s.isActive == true);
+            var activeSequences = sequences.FindAll(s => s.isActive);
             if (activeSequences.Count == 0) 
+            {
+                //unlock all sequences
+                sequences.ForEach (((Sequence s) => s.isLocked = false));
                 return;
-
+            }
             foreach (Sequence sq in activeSequences)
             {
                 if (sq.commands == null) continue;
 
-                var activeCommands = sq.commands.FindAll(s => s.isActive == true);
+                var affectedServos = new List <IRWrapper.IRAPI.IRServo> ();
+                sq.commands.FindAll (s => s.servo != null).ForEach ((BasicCommand c) => affectedServos.Add (c.servo));
+
+                if (affectedServos.Any ()) 
+                {
+                    sequences.FindAll (s => s.commands.Any (c => affectedServos.Contains (c.servo))).ForEach ((Sequence seq) => seq.isLocked = true);
+                    //exclude current sequence from Locked List
+                    sq.isLocked = false;
+                }
+
+                var activeCommands = sq.commands.FindAll(s => s.isActive);
                 var activeCount = activeCommands.Count;
                 
                 foreach (BasicCommand bc in activeCommands)
@@ -369,20 +465,42 @@ namespace IRSequencer.Gui
                 {
                     if (activeCount <= 0)
                     {
-                        Logger.Log("[Sequencer] Finished sequence " + sq.name, Logger.Level.Debug);
-                        if (sq.isLooped)
+                        if(sq.lastCommandIndex+1 < sq.commands.Count)
                         {
-                            sq.Reset();
-                            sq.Start();
+                            sq.Resume (sq.lastCommandIndex+1);
                         }
+                        else if (sq.isLooped) 
+                        {
+                            Logger.Log("[Sequencer] Looping sequence " + sq.name, Logger.Level.Debug);
+                            sq.Reset ();
+                            sq.Start ();
+                        } 
                         else
-                            sq.SetFinished();
+                        {    
+                            Logger.Log("[Sequencer] Finished sequence " + sq.name, Logger.Level.Debug);
+                            sq.SetFinished ();
+                            //unlock all other sequences that may have been locked by this sequence
+                            if (affectedServos.Any ()) 
+                            {
+                                sequences.FindAll (s => s.commands.Any (c => affectedServos.Contains (c.servo))).ForEach ((Sequence seq) => seq.isLocked = false);
+                            }
+                        }
                     }
                     else
                     {
                         //sequence was delayed  and should continue from the place of last delay 
-                        //problem is that we should not seek first unfinished but resume execution from lastCommandIndex
-                        sq.Resume(sq.lastCommandIndex+1);
+                        //we should not seek first unfinished command, but resume execution from lastCommandIndex+1
+                        if (sq.lastCommandIndex + 1 < sq.commands.Count)
+                            sq.Resume (sq.lastCommandIndex + 1);
+                        else 
+                        {
+                            //sq.SetFinished();
+                            //unlock all other sequences that may have been locked by this sequence
+                            //if (affectedServos.Any ()) 
+                            //{
+                            //    sequences.FindAll (s => s.commands.Any (c => affectedServos.Contains (c.servo))).ForEach ((Sequence seq) => seq.isLocked = false);
+                            //}
+                        }
                     }
                 }
             }
@@ -401,8 +519,6 @@ namespace IRSequencer.Gui
 
             sequences = new List<Sequence>();
             sequences.Clear();
-
-            InitTextures();
 
             GameEvents.onGUIApplicationLauncherReady.Add(OnAppReady);
             
@@ -478,21 +594,7 @@ namespace IRSequencer.Gui
             Vector2 pos = Event.current.mousePosition;
             if (tooltipText != "" && tooltipTime < TOOLTIP_MAX_TIME)
             {
-                var tooltipStyle = new GUIStyle
-                {
-                    fontSize = 12,
-                    fontStyle = FontStyle.Bold,
-                    normal =
-                    {
-                        textColor = new Color32(207, 207, 207, 255),
-                        background = TextureLoader.EditorBackgroundText
-                    },
-                    stretchHeight = true,
-                    border = new RectOffset(3, 3, 3, 3),
-                    padding = new RectOffset(4, 4, 6, 4),
-                    alignment = TextAnchor.MiddleLeft
-                };
-
+                
                 var tooltip = new GUIContent(tooltipText);
                 Vector2 size = tooltipStyle.CalcSize(tooltip);
 
@@ -522,19 +624,14 @@ namespace IRSequencer.Gui
             //requires ServoGroups to be parsed
             if (!IRWrapper.APIReady)
                 return;
-            
-            var buttonStyle = new GUIStyle(GUI.skin.button);
-            var padding2px = new RectOffset(2, 2, 2, 2);
-
-            buttonStyle.padding = padding2px;
-            buttonStyle.alignment = TextAnchor.MiddleCenter;
+            GUI.color = opaqueColor;
 
             GUILayout.BeginVertical();
 
             GUILayout.BeginHorizontal();
 
             GUILayout.Label("Sequence Name", GUILayout.ExpandWidth(true), GUILayout.Height(22));
-            GUILayout.Label("Controls", GUILayout.Width(250), GUILayout.Height(22));
+            GUILayout.Label("Controls", GUILayout.Width(150), GUILayout.Height(22));
 
             GUILayout.EndHorizontal();
 
@@ -543,49 +640,65 @@ namespace IRSequencer.Gui
                 //list through all sequences
                 var sq = sequences[i];
                 GUILayout.BeginHorizontal();
+
+                string sequenceStatus = (sq.isActive) ? "<color=lime>■</color>" : sq.isFinished ? "<color=green>■</color>" : "<color=silver>■</color>";
+                if (sq.isLocked)
+                    sequenceStatus = "<color=red>■</color>";
+                
+                GUILayout.Label(sequenceStatus, dotStyle, GUILayout.Width(20), GUILayout.Height(22));
+
                 sq.name = GUILayout.TextField(sq.name, GUILayout.ExpandWidth(true), GUILayout.Height(22));
 
-                if (GUILayout.Button("Run", buttonStyle, GUILayout.Width(40), GUILayout.Height(22)))
+                GUI.color = solidColor;
+                if (GUILayout.Button(new GUIContent(TextureLoader.PlayIcon, "Play"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
                 {
                     sq.Start();
                 }
+                SetTooltipText ();
 
-                if (GUILayout.Button("Pause", buttonStyle, GUILayout.Width(40), GUILayout.Height(22)))
+                if (GUILayout.Button(new GUIContent(TextureLoader.PauseIcon, "Pause"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
                 {
                     sq.Pause();
                 }
+                SetTooltipText ();
 
-                if (GUILayout.Button("Reset", buttonStyle, GUILayout.Width(40), GUILayout.Height(22)))
+
+                if (GUILayout.Button(new GUIContent(TextureLoader.StopIcon, "Reset"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
                 {
                     sq.Reset();
                 }
+                SetTooltipText ();
 
-                if (GUILayout.Button("Edit", buttonStyle, GUILayout.Width(40), GUILayout.Height(22)))
+                if (GUILayout.Button(new GUIContent(TextureLoader.EditIcon, "Edit"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
                 {
                     openSequence = sq;
                     guiSequenceEditor = !guiSequenceEditor;
                 }
+                SetTooltipText ();
 
-                if (GUILayout.Button("Clone", buttonStyle, GUILayout.Width(40), GUILayout.Height(22)))
+                if (GUILayout.Button(new GUIContent(TextureLoader.PresetsIcon, "Clone"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
                 {
                     sequences.Add(new Sequence(sq));
                 }
+                SetTooltipText ();
 
-                if (GUILayout.Button("Del", buttonStyle, GUILayout.Width(40), GUILayout.Height(22)))
+                if (GUILayout.Button(new GUIContent(TextureLoader.TrashIcon, "Delete"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
                 {
                     sq.Pause();
                     sq.Reset();
                     sequences.RemoveAt(i);
-                    return;
                 }
-
+                SetTooltipText ();
+                GUI.color = opaqueColor;
                 GUILayout.EndHorizontal();
             }
             GUILayout.BeginHorizontal();
+            GUI.color = solidColor;
             if(GUILayout.Button("Add new", buttonStyle, GUILayout.Height(22)))
             {
                 sequences.Add(new Sequence());
             }
+            GUI.color = opaqueColor;
             GUILayout.EndHorizontal();
             GUILayout.EndVertical();
 
@@ -601,174 +714,189 @@ namespace IRSequencer.Gui
             if (openSequence == null)
                 return;
 
-            Vector2 mousePos = Event.current.mousePosition;
+            GUI.color = opaqueColor;
 
-            var buttonStyle = new GUIStyle(GUI.skin.button);
-            var padding2px = new RectOffset(2, 2, 2, 2);
-
-            buttonStyle.padding = padding2px;
-            buttonStyle.alignment = TextAnchor.MiddleCenter;
+            string tmpString;
+            float tmpValue;
 
             GUILayout.BeginVertical();
             GUILayout.BeginHorizontal();
             GUILayoutOption maxHeight = GUILayout.MaxHeight(Screen.height * 0.5f);
 
-            servoListScroll = GUILayout.BeginScrollView(servoListScroll, false, false, maxHeight);
-            GUILayout.BeginVertical(GUILayout.Width(200));
-            
-            List<IRWrapper.IRAPI.IRServo> allServos = new List<IRWrapper.IRAPI.IRServo>();
 
-            foreach(IRWrapper.IRAPI.IRControlGroup g in IRWrapper.IRController.ServoGroups)
+            GUILayout.BeginVertical(GUILayout.Width(270));
+
+            //draw buttons here
+            GUILayout.BeginHorizontal();
+            var modes = new String[] {"Servos", "ActionGroups"};
+            GUI.color = solidColor;
+            currentMode = GUILayout.Toolbar (currentMode, modes, buttonStyle,  GUILayout.Height(22));
+            openSequence.isLooped = GUILayout.Toggle(openSequence.isLooped, "Looping", buttonStyle,  GUILayout.Height(22));
+            GUI.color = opaqueColor;
+            GUILayout.EndHorizontal();
+
+            var allServos = new List<IRWrapper.IRAPI.IRServo>();
+
+            if (currentMode == 0) 
             {
-                allServos.AddRange(g.Servos);
-            }
-
-            if (activeServo == null)
-            {
-                activeServo = allServos[0];
-                currentPosition = activeServo.Position;
-            }
-
-            for (int i = 0; i < IRWrapper.IRController.ServoGroups.Count; i++)
-            {
-                IRWrapper.IRAPI.IRControlGroup g = IRWrapper.IRController.ServoGroups[i];
-
-                if (g.Servos.Any())
+                foreach (IRWrapper.IRAPI.IRControlGroup g in IRWrapper.IRController.ServoGroups) 
                 {
-                    GUILayout.BeginHorizontal();
+                    allServos.AddRange (g.Servos);
+                }
 
-                    if (g.Expanded)
+                if (availableServoCommands == null) 
+                {
+                    availableServoCommands = new List<BasicCommand> ();    
+                }
+
+                if (allServos.Count != availableServoCommands.Count) 
+                {
+                    availableServoCommands.Clear ();
+                    //rebuild the list of available commands
+                    foreach (IRWrapper.IRAPI.IRServo s in allServos) 
                     {
-                        g.Expanded = !GUILayout.Button(TextureLoader.CollapseIcon, buttonStyle, GUILayout.Width(20), GUILayout.Height(22));
+                        var bc = new BasicCommand (s, s.Position, 1f);
+                        availableServoCommands.Add (bc);
                     }
-                    else
+                }
+
+
+                servoListScroll = GUILayout.BeginScrollView (servoListScroll, false, false, maxHeight);
+                //GUILayout.BeginVertical ();
+                for (int i = 0; i < IRWrapper.IRController.ServoGroups.Count; i++) 
+                {
+                    IRWrapper.IRAPI.IRControlGroup g = IRWrapper.IRController.ServoGroups [i];
+
+                    if (g.Servos.Any ()) 
                     {
-                        g.Expanded = GUILayout.Button(TextureLoader.ExpandIcon, buttonStyle, GUILayout.Width(20), GUILayout.Height(22));
-                    }
+                        GUILayout.BeginHorizontal ();
 
-                    //overload default GUIStyle with bold font
-                    var t = new GUIStyle(GUI.skin.label.name)
-                    {
-                        fontStyle = FontStyle.Bold
-                    };
-
-                    GUILayout.Label(g.Name, t, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-
-                    GUILayout.EndHorizontal();
-
-                    if (g.Expanded)
-                    {
-                        GUILayout.BeginHorizontal(GUILayout.Height(5));
-                        GUILayout.EndHorizontal();
-
-                        foreach (IRWrapper.IRAPI.IRServo servo in g.Servos)
+                        GUI.color = solidColor;
+                        if (g.Expanded) 
                         {
-                            GUILayout.BeginHorizontal();
-
-                            if (GUILayout.Button(new GUIContent(TextureLoader.RightIcon, "Select"), buttonStyle, GUILayout.Width(18), GUILayout.Height(22)))
-                            {
-                                activeServo = servo;
-                                currentPosition = activeServo.Position;
-                                return; //redraw gui window
-                            }
-                            SetTooltipText();
-
-                            var nameStyle = new GUIStyle(GUI.skin.label)
-                            {
-                                alignment = TextAnchor.MiddleLeft,
-                                clipping = TextClipping.Clip
-                            };
-
-                            GUILayout.Label(servo.Name, nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-                            GUILayout.EndHorizontal();
+                            g.Expanded = !GUILayout.Button (TextureLoader.CollapseIcon, buttonStyle, GUILayout.Width (20), GUILayout.Height (22));
+                        } 
+                        else 
+                        {
+                            g.Expanded = GUILayout.Button (TextureLoader.ExpandIcon, buttonStyle, GUILayout.Width (20), GUILayout.Height (22));
                         }
+                        GUI.color = opaqueColor;
 
-                        GUILayout.BeginHorizontal(GUILayout.Height(5));
-                        GUILayout.EndHorizontal();
-                    }
+                        nameStyle.fontStyle = FontStyle.Bold;
+                        GUILayout.Label (g.Name, nameStyle, GUILayout.ExpandWidth (true), GUILayout.Height (22));
+                        nameStyle.fontStyle = FontStyle.Normal;
+
+                        GUILayout.EndHorizontal ();
+
+                        if (g.Expanded) 
+                        {
+                            GUILayout.BeginHorizontal (GUILayout.Height (5));
+                            GUILayout.EndHorizontal ();
+
+                            foreach (IRWrapper.IRAPI.IRServo servo in g.Servos) 
+                            {
+                                GUILayout.BeginHorizontal ();
+                                var avCommand = availableServoCommands.FirstOrDefault (t => t.servo == servo);
+
+                                if (avCommand == null) 
+                                {
+                                    Logger.Log ("[Sequencer] Cannot find matching command for servo " + servo.Name, Logger.Level.Debug);
+                                    return;
+                                }
+                                if (GUILayout.Button ("Add", buttonStyle, GUILayout.Width (30), GUILayout.Height (22))) 
+                                {
+                                    openSequence.commands.Add (new BasicCommand (avCommand));
+                                }
+
+                                GUILayout.Label (servo.Name, nameStyle, GUILayout.ExpandWidth (true), GUILayout.Height (22));
+
+                                //GUILayout.Label ("to", nameStyle, GUILayout.Height (22));
+                                tmpString = GUILayout.TextField (string.Format ("{0:#0.0#}", avCommand.position), GUILayout.Width (40), GUILayout.Height (22));
+                                if (float.TryParse (tmpString, out tmpValue)) 
+                                {
+                                    avCommand.position = tmpValue;
+                                }
+                                GUILayout.Label ("@", nameStyle, GUILayout.Height (22));
+                                tmpString = GUILayout.TextField (string.Format ("{0:#0.0#}", avCommand.speedMultiplier), GUILayout.Width (30), GUILayout.Height (22));
+                                if (float.TryParse (tmpString, out tmpValue)) 
+                                {
+                                    avCommand.speedMultiplier = Mathf.Clamp (tmpValue, 0.05f, 1000f);
+                                }
+                                //GUILayout.Label ("x", nameStyle, GUILayout.Height (22));
+                                GUILayout.EndHorizontal ();
+                            }
+
+                            GUILayout.BeginHorizontal (GUILayout.Height (5));
+                            GUILayout.EndHorizontal ();
+                        }
                     
+                    }
                 }
-            }
-            GUILayout.EndVertical();
-            GUILayout.EndScrollView();
+                //GUILayout.EndVertical ();
+                GUILayout.EndScrollView ();
 
-            GUILayout.BeginVertical();
-            GUILayout.BeginHorizontal();
+                GUILayout.BeginVertical (GUI.skin.scrollView);
+                GUILayout.BeginHorizontal ();
 
-            GUILayout.Label("Selected servo: " + activeServo.Name, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-            Rect last = GUILayoutUtility.GetLastRect();
-            Vector2 pos = Event.current.mousePosition;
-            bool highlight = last.Contains(pos);
-            activeServo.Highlight = highlight;
-
-            GUILayout.EndHorizontal();
-            /*GUILayout.BeginHorizontal();
-
-            GUILayout.Label("Presets:", GUILayout.Width(50), GUILayout.Height(22));
-            foreach (float p in activeServo.PresetPositions)
-            {
-                if (GUILayout.Button(p.ToString(), buttonStyle, GUILayout.Height(22)))
+                if (GUILayout.Button ("Add", buttonStyle, GUILayout.Width (30), GUILayout.Height (22))) 
                 {
-                    var newCommand = new BasicCommand(activeServo, p, activeServo.speedTweak * currentSpeedMultiplier);
-                    openSequence.commands.Add(newCommand);
+                    var newCommand = new BasicCommand (true, currentDelay);
+                    openSequence.commands.Add (newCommand);
                 }
-            }
-            GUILayout.EndHorizontal();*/
-            GUILayout.BeginHorizontal();
 
-            GUILayout.Label("Position:", GUILayout.Width(50), GUILayout.Height(22));
-            string tmpString;
-            float tmpValue;
-            tmpString = GUILayout.TextField(string.Format("{0:#0.0#}", currentPosition), GUILayout.Width(40), GUILayout.Height(22));
-            if (float.TryParse(tmpString, out tmpValue))
+                GUILayout.Label ("Delay for ", nameStyle, GUILayout.Width (50), GUILayout.Height (22));
+                tmpString = GUILayout.TextField (string.Format ("{0:#0.0#}", currentDelay), GUILayout.Width (40), GUILayout.Height (22));
+                if (float.TryParse (tmpString, out tmpValue)) {
+                    currentDelay = Mathf.Clamp (tmpValue, 0f, 600f);
+                }
+                GUILayout.Label ("s ", nameStyle, GUILayout.Width (18), GUILayout.Height (22));
+
+                GUILayout.EndHorizontal ();
+                GUILayout.BeginHorizontal ();
+
+                if (GUILayout.Button ("Add", buttonStyle, GUILayout.Width (30), GUILayout.Height (22))) 
+                {
+                    var newCommand = new BasicCommand (true);
+                    openSequence.commands.Add (newCommand);
+                }
+                GUILayout.Label ("Wait for finish", nameStyle, GUILayout.ExpandWidth (true), GUILayout.Height (22));
+
+                GUILayout.EndHorizontal ();
+                GUILayout.EndVertical ();
+            }
+            else 
             {
-                currentPosition = tmpValue;
-            }
+                //here goes actiongroup stuff
+                actionListScroll = GUILayout.BeginScrollView (actionListScroll, false, false, maxHeight);
+                //GUILayout.BeginVertical ();
 
-            GUILayout.Label("Speed:", GUILayout.Width(50), GUILayout.Height(22));
-            tmpString = GUILayout.TextField(string.Format("{0:#0.0#}", currentSpeedMultiplier), GUILayout.Width(40), GUILayout.Height(22));
-            if (float.TryParse(tmpString, out tmpValue))
-            {
-                currentSpeedMultiplier = Mathf.Clamp(tmpValue, 0.05f, 1000f);
-            }
+                foreach (KSPActionGroup a in Enum.GetValues(typeof(KSPActionGroup)).Cast<KSPActionGroup>())
+                {
+                    if (a == KSPActionGroup.None)
+                        continue;
+                    
+                    GUILayout.BeginHorizontal ();
 
-            if (GUILayout.Button("Add Command", buttonStyle, GUILayout.Height(22)))
-            {
-                var newCommand = new BasicCommand(activeServo, currentPosition, activeServo.Speed * currentSpeedMultiplier);
-                openSequence.commands.Add(newCommand);
-            }
-            
-            
-            GUILayout.EndHorizontal();
-            GUILayout.BeginHorizontal();
+                    if (GUILayout.Button ("Add", buttonStyle, GUILayout.Width (30), GUILayout.Height (22))) 
+                    {
+                        var newCommand = new BasicCommand (a);
+                        openSequence.commands.Add (newCommand);
+                    }
+                    GUILayout.Label ("Toggle AG: " + a.ToString(), GUILayout.ExpandWidth (true), GUILayout.Height (22));
+                    GUILayout.EndHorizontal ();
+                }
+          
 
-            GUILayout.Label("Delay:", GUILayout.Width(50), GUILayout.Height(22));
-            tmpString = GUILayout.TextField(string.Format("{0:#0.0#}", currentDelay), GUILayout.Width(40), GUILayout.Height(22));
-            if (float.TryParse(tmpString, out tmpValue))
-            {
-                currentDelay = Mathf.Clamp(tmpValue, 0f, 600f);
+                //GUILayout.EndVertical ();
+                GUILayout.EndScrollView ();
             }
-            if (GUILayout.Button("Add Delay", buttonStyle, GUILayout.Height(22)))
-            {
-                var newCommand = new BasicCommand(true, currentDelay);
-                openSequence.commands.Add(newCommand);
-            }
-
-            if (GUILayout.Button("Add Wait", buttonStyle, GUILayout.Height(22)))
-            {
-                var newCommand = new BasicCommand(true);
-                openSequence.commands.Add(newCommand);
-            }
-
-            GUILayout.EndHorizontal();
-
-            GUILayout.BeginHorizontal(GUILayout.Height(10));
-            GUILayout.EndHorizontal();
+            GUILayout.EndVertical ();
+            GUILayout.BeginVertical();
 
             commandListScroll = GUILayout.BeginScrollView(commandListScroll, false, false, maxHeight);
             GUILayout.BeginVertical();
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Commands:", GUILayout.ExpandWidth(true), GUILayout.Height(22));
+            GUILayout.Label("Commands:", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
             GUILayout.EndHorizontal();
 
             //now begin listing commands in sequence
@@ -777,12 +905,6 @@ namespace IRSequencer.Gui
                 BasicCommand bc = openSequence.commands[i];
 
                 GUILayout.BeginHorizontal();
-
-                var dotStyle = new GUIStyle(GUI.skin.label)
-                {
-                    richText = true,
-                    alignment = TextAnchor.MiddleCenter
-                };
 
                 string commandStatus = (bc.isActive || openSequence.lastCommandIndex == i) ? "<color=lime>■</color>" : bc.isFinished ? "<color=green>■</color>" : "<color=silver>■</color>";
                 GUILayout.Label(commandStatus, dotStyle, GUILayout.Width(20), GUILayout.Height(22));
@@ -802,9 +924,13 @@ namespace IRSequencer.Gui
                 }
                 else if (bc.servo != null) 
                     labelText = bc.servo.Name + " to " + Math.Round(bc.position, 2).ToString() + " at " + Math.Round(bc.speedMultiplier, 2).ToString() + "x";
+                else if (bc.ag != KSPActionGroup.None)
+                {
+                    labelText = "Toggle ActionGroup: " + bc.ag.ToString ();
+                }
 
-                GUILayout.Label(labelText, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-
+                GUILayout.Label(labelText, nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
+                GUI.color = solidColor;
                 if (i > 0)
                 {
                     if (GUILayout.Button(TextureLoader.UpIcon, buttonStyle, GUILayout.Width(20), GUILayout.Height(22)))
@@ -831,8 +957,8 @@ namespace IRSequencer.Gui
                 if (GUILayout.Button(TextureLoader.TrashIcon, buttonStyle, GUILayout.Width(20), GUILayout.Height(22)))
                 {
                    openSequence.commands.RemoveAt(i);
-                   return;
                 }
+                GUI.color = opaqueColor;
                 GUILayout.EndHorizontal();
             }
             
@@ -841,11 +967,7 @@ namespace IRSequencer.Gui
 
             GUILayout.BeginHorizontal();
 
-            if (GUILayout.Button("Reset", buttonStyle, GUILayout.Height(22)))
-            {
-                openSequence.Reset();
-            }
-
+            GUI.color = solidColor;
             if (GUILayout.Button("Start", buttonStyle, GUILayout.Height(22)))
             {
                 openSequence.Start();
@@ -856,8 +978,11 @@ namespace IRSequencer.Gui
                 openSequence.Pause();
             }
 
-            openSequence.isLooped = GUILayout.Toggle(openSequence.isLooped, "Loop", buttonStyle, GUILayout.Width(40), GUILayout.Height(22));
-
+            if (GUILayout.Button("Reset", buttonStyle, GUILayout.Height(22)))
+            {
+                openSequence.Reset();
+            }
+            GUI.color = opaqueColor;
             GUILayout.EndHorizontal();
 
             GUILayout.EndVertical();
@@ -896,15 +1021,19 @@ namespace IRSequencer.Gui
             {
                 SequencerEditorWindowPos = new Rect(Screen.width - 510, 300, 10, 10);
             }
-            
+
             GUI.skin = DefaultSkinProvider.DefaultSkin;
+            GUI.color = opaqueColor;
+
+            if (!GUISetupDone)
+                InitGUI();
             
             if (GUIEnabled && !guiHidden)
             {
                 SequencerWindowPos = GUILayout.Window(SequencerWindowID, SequencerWindowPos,
                 SequencerControlWindow,
                 "IR Sequencer",
-                GUILayout.Width(400),
+                GUILayout.Width(300),
                 GUILayout.Height(80));
 
                 if (guiSequenceEditor)
@@ -913,7 +1042,7 @@ namespace IRSequencer.Gui
                     SequencerEditorWindowPos = GUILayout.Window(SequencerEditorWindowID, SequencerEditorWindowPos,
                     SequencerEditorWindow,
                     "Edit Sequence",
-                    GUILayout.Width(600),
+                    GUILayout.Width(620),
                     GUILayout.Height(height));
                 }
             }
