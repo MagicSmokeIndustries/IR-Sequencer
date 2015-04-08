@@ -39,12 +39,14 @@ namespace IRSequencer.Gui
         private static GUIStyle buttonStyle;
         private static GUIStyle nameStyle;
         private static GUIStyle dotStyle;
+        private static GUIStyle textFieldStyle;
 
         private static Color solidColor;
         private static Color opaqueColor;
 
         private float currentDelay = 1.0f;
         private int currentMode = 0;
+        private string currentGotoIndexString = "1";
         private int currentGotoIndex = 0;
         private int currentGotoCounter = -1;
 
@@ -361,7 +363,7 @@ namespace IRSequencer.Gui
                 };
 
                 buttonStyle = new GUIStyle(GUI.skin.button);
-                buttonStyle.padding =  new RectOffset(2, 2, 2, 2);;
+                buttonStyle.padding =  new RectOffset(2, 2, 2, 2);
                 buttonStyle.alignment = TextAnchor.MiddleCenter;
 
                 nameStyle = new GUIStyle(GUI.skin.label)
@@ -376,6 +378,8 @@ namespace IRSequencer.Gui
                     richText = true,
                     alignment = TextAnchor.MiddleCenter
                 };
+
+                textFieldStyle = new GUIStyle(GUI.skin.textField);
 
                 solidColor = new Color (1, 1, 1, 1);
                 opaqueColor = new Color (1, 1, 1, 0.7f);
@@ -621,6 +625,8 @@ namespace IRSequencer.Gui
                 Logger.Log("[Sequencer] Failed unregistering AppLauncher handlers," + e.Message);
             }
 
+            //consider unloading textures too in TextureLoader
+
             Logger.Log("[Sequencer] Destroy successful", Logger.Level.Debug);
         }
 
@@ -697,7 +703,7 @@ namespace IRSequencer.Gui
 
                 GUILayout.Label(sequenceStatus, dotStyle, GUILayout.Width(20), GUILayout.Height(22));
 
-                sq.name = GUILayout.TextField(sq.name, GUILayout.ExpandWidth(true), GUILayout.Height(22));
+                sq.name = GUILayout.TextArea(sq.name, textFieldStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
 
                 if (GUILayout.Button(new GUIContent(TextureLoader.PlayIcon, "Play"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
                 {
@@ -857,18 +863,23 @@ namespace IRSequencer.Gui
 
                                 if (GUILayout.Button ("Add", buttonStyle, GUILayout.Width (30), GUILayout.Height (22))) 
                                 {
+                                    if (openSequence.isActive) 
+                                    {
+                                        openSequence.Pause ();
+                                        openSequence.Reset ();
+                                    }
                                     openSequence.commands.Add (new BasicCommand (avCommand));
                                 }
 
                                 GUILayout.Label (servo.Name, nameStyle, GUILayout.ExpandWidth (true), GUILayout.Height (22));
 
-                                tmpString = GUILayout.TextField (string.Format ("{0:#0.0#}", avCommand.position), GUILayout.Width (40), GUILayout.Height (22));
+                                tmpString = GUILayout.TextArea (string.Format ("{0:#0.0#}", avCommand.position), textFieldStyle, GUILayout.Width (40), GUILayout.Height (22));
                                 if (float.TryParse (tmpString, out tmpValue)) 
                                 {
-                                    avCommand.position = tmpValue;
+                                    avCommand.position = Mathf.Clamp(tmpValue, avCommand.servo.MinPosition, avCommand.servo.MaxPosition);
                                 }
                                 GUILayout.Label ("@", nameStyle, GUILayout.Height (22));
-                                tmpString = GUILayout.TextField (string.Format ("{0:#0.0#}", avCommand.speedMultiplier), GUILayout.Width (30), GUILayout.Height (22));
+                                tmpString = GUILayout.TextArea (string.Format ("{0:#0.0#}", avCommand.speedMultiplier), textFieldStyle, GUILayout.Width (30), GUILayout.Height (22));
                                 if (float.TryParse (tmpString, out tmpValue)) 
                                 {
                                     avCommand.speedMultiplier = Mathf.Clamp (tmpValue, 0.05f, 1000f);
@@ -898,6 +909,12 @@ namespace IRSequencer.Gui
                     GUI.color = solidColor;
                     if (GUILayout.Button ("Add", buttonStyle, GUILayout.Width (30), GUILayout.Height (22))) 
                     {
+                        if (openSequence.isActive) 
+                        {
+                            openSequence.Pause ();
+                            openSequence.Reset ();
+                        }
+
                         var newCommand = new BasicCommand (a);
                         openSequence.commands.Add (newCommand);
                     }
@@ -916,12 +933,17 @@ namespace IRSequencer.Gui
             GUI.color = solidColor;
             if (GUILayout.Button("Add", buttonStyle, GUILayout.Width(30), GUILayout.Height(22)))
             {
+                if (openSequence.isActive) 
+                {
+                    openSequence.Pause ();
+                    openSequence.Reset ();
+                }
                 var newCommand = new BasicCommand(true, currentDelay);
                 openSequence.commands.Add(newCommand);
             }
 
             GUILayout.Label("Delay for ", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-            tmpString = GUILayout.TextField(string.Format("{0:#0.0#}", currentDelay), GUILayout.Width(40), GUILayout.Height(22));
+            tmpString = GUILayout.TextArea(string.Format("{0:#0.0#}", currentDelay), textFieldStyle, GUILayout.Width(40), GUILayout.Height(22));
             if (float.TryParse(tmpString, out tmpValue))
             {
                 currentDelay = Mathf.Clamp(tmpValue, 0f, 600f);
@@ -933,6 +955,11 @@ namespace IRSequencer.Gui
 
             if (GUILayout.Button("Add", buttonStyle, GUILayout.Width(30), GUILayout.Height(22)))
             {
+                if (openSequence.isActive) 
+                {
+                    openSequence.Pause ();
+                    openSequence.Reset ();
+                }
                 var newCommand = new BasicCommand(true);
                 openSequence.commands.Add(newCommand);
             }
@@ -943,6 +970,11 @@ namespace IRSequencer.Gui
 
             if (GUILayout.Button("Add", buttonStyle, GUILayout.Width(30), GUILayout.Height(22)))
             {
+                if (openSequence.isActive) 
+                {
+                    openSequence.Pause ();
+                    openSequence.Reset ();
+                }
                 var newCommand = new BasicCommand(currentGotoIndex, currentGotoCounter);
                 openSequence.commands.Add(newCommand);
             }
@@ -950,22 +982,40 @@ namespace IRSequencer.Gui
             GUILayout.BeginVertical();
             GUILayout.BeginHorizontal();
             GUILayout.Label("Go To command #", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-            tmpString = GUILayout.TextField(string.Format("{0:#0}", currentGotoIndex+1), GUILayout.Width(30), GUILayout.Height(22));
-            if (float.TryParse(tmpString, out tmpValue))
+            if (GUILayout.Button ("-", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
+            {
+                currentGotoIndex = Math.Max (currentGotoIndex - 1, 0);
+                currentGotoIndexString = (currentGotoIndex+1).ToString ();
+            }
+            currentGotoIndexString = GUILayout.TextArea(string.Format("{0:#0}", currentGotoIndexString), textFieldStyle, GUILayout.Width(25), GUILayout.Height(22));
+
+            if (float.TryParse(currentGotoIndexString, out tmpValue))
             {
                 currentGotoIndex = (int)Mathf.Clamp(tmpValue-1, 0f, openSequence.commands.Count-1);
             }
-            
+
+            if (GUILayout.Button ("+", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
+            {
+                currentGotoIndex = Math.Max (Math.Min (currentGotoIndex + 1, openSequence.commands.Count-1), 0);
+                currentGotoIndexString = (currentGotoIndex+1).ToString ();
+            }
             GUILayout.EndHorizontal();
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Repeat ", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-            tmpString = GUILayout.TextField(string.Format("{0:#0}", currentGotoCounter), GUILayout.Width(30), GUILayout.Height(22));
+            GUILayout.Label("Repeat (-1 for loop)", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
+            if (GUILayout.Button ("-", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
+            {
+                currentGotoCounter = Math.Max (currentGotoCounter - 1, -1);
+            }
+
+            tmpString = GUILayout.TextArea(string.Format("{0:#0}", currentGotoCounter), textFieldStyle, GUILayout.Width(25), GUILayout.Height(22));
             if (float.TryParse(tmpString, out tmpValue))
             {
                 currentGotoCounter = (int)Math.Max(tmpValue, -1);
             }
-            
-            GUILayout.Label(" times (-1 for loop).", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
+            if (GUILayout.Button ("+", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
+            {
+                currentGotoCounter = Math.Max (currentGotoCounter + 1, -1);
+            }
             GUILayout.EndHorizontal();
             GUILayout.EndVertical();
             
@@ -994,7 +1044,7 @@ namespace IRSequencer.Gui
                 string commandStatus = (bc.isActive || openSequence.lastCommandIndex == i) ? "<color=lime>■</color>" : bc.isFinished ? "<color=green>■</color>" : "<color=silver>■</color>";
                 GUILayout.Label(commandStatus, dotStyle, GUILayout.Width(20), GUILayout.Height(22));
 
-                GUILayout.Label((i+1).ToString() + ":", dotStyle, GUILayout.Width(30), GUILayout.Height(22));
+                GUILayout.Label((i+1).ToString() + ":", dotStyle, GUILayout.Width(25), GUILayout.Height(22));
 
                 var labelText = "";
                 if (bc.wait)
@@ -1142,7 +1192,7 @@ namespace IRSequencer.Gui
                         SequencerEditorWindowPos = GUILayout.Window(SequencerEditorWindowID, SequencerEditorWindowPos,
                         SequencerEditorWindow,
                         "Sequence Editor: " + openSequence.name,
-                        GUILayout.Width(620),
+                        GUILayout.Width(640),
                         GUILayout.Height(height));
                 }
             }
