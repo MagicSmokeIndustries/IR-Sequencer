@@ -677,13 +677,13 @@ namespace IRSequencer.Gui
 
             GUILayout.BeginVertical();
 
-            GUILayout.BeginHorizontal();
+            /*GUILayout.BeginHorizontal();
 
             GUILayout.Label("Sequence Name", GUILayout.ExpandWidth(true), GUILayout.Height(22));
             GUILayout.Label("Controls", GUILayout.Width(150), GUILayout.Height(22));
 
             GUILayout.EndHorizontal();
-
+            */
             for (int i = 0; i < sequences.Count; i++)
             {
                 //list through all sequences
@@ -718,6 +718,8 @@ namespace IRSequencer.Gui
                 }
                 SetTooltipText ();
 
+                GUILayout.Space(4);
+
                 if (GUILayout.Button(new GUIContent(TextureLoader.EditIcon, "Edit"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
                 {
                     openSequence = sq;
@@ -725,12 +727,14 @@ namespace IRSequencer.Gui
                 }
                 SetTooltipText ();
 
-                if (GUILayout.Button(new GUIContent(TextureLoader.PresetsIcon, "Clone"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
+                if (GUILayout.Button(new GUIContent(TextureLoader.CloneIcon, "Clone"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
                 {
                     sequences.Add(new Sequence(sq));
                 }
                 SetTooltipText ();
 
+                GUILayout.Space(4);
+                
                 if (GUILayout.Button(new GUIContent(TextureLoader.TrashIcon, "Delete"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
                 {
                     sq.Pause();
@@ -1127,21 +1131,22 @@ namespace IRSequencer.Gui
             {
                 SequencerWindowPos = GUILayout.Window(SequencerWindowID, SequencerWindowPos,
                 SequencerControlWindow,
-                "IR Sequencer",
+                "Servo Sequencer",
                 GUILayout.Width(300),
                 GUILayout.Height(80));
 
                 if (guiSequenceEditor)
                 {
                     float height = Screen.height / 2f;
-                    SequencerEditorWindowPos = GUILayout.Window(SequencerEditorWindowID, SequencerEditorWindowPos,
-                    SequencerEditorWindow,
-                    "Edit Sequence",
-                    GUILayout.Width(620),
-                    GUILayout.Height(height));
+                    if(openSequence != null)
+                        SequencerEditorWindowPos = GUILayout.Window(SequencerEditorWindowID, SequencerEditorWindowPos,
+                        SequencerEditorWindow,
+                        "Sequence Editor: " + openSequence.name,
+                        GUILayout.Width(620),
+                        GUILayout.Height(height));
                 }
             }
-
+            GUI.color = solidColor;
             DrawTooltip();
         }
     }

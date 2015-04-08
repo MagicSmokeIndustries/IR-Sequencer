@@ -32,6 +32,8 @@ namespace IRSequencer.Utility
         internal static Texture2D PauseIcon { get; private set; }
         internal static Texture2D StopIcon { get; private set; }
         internal static Texture2D EditIcon { get; private set; }
+        internal static Texture2D CloneIcon { get; private set; }
+
 
         internal static Texture2D BgIcon { get; private set; }
 
@@ -105,7 +107,7 @@ namespace IRSequencer.Utility
                 LoadImageFromFile(PrevIcon, "prev.png");
 
                 BgIcon = new Texture2D(9, 9, TextureFormat.ARGB32, false);
-                LoadImageFromFile(PrevIcon, "icon_background.png");
+                LoadImageFromFile(BgIcon, "icon_background.png");
 
                 PlayIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
                 LoadImageFromFile(PlayIcon, "play.png");
@@ -118,6 +120,9 @@ namespace IRSequencer.Utility
 
                 EditIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
                 LoadImageFromFile(EditIcon, "edit.png");
+
+                CloneIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
+                LoadImageFromFile(CloneIcon, "clone.png");
 
                 isReady = true;
             }
