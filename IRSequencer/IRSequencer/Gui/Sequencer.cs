@@ -703,7 +703,7 @@ namespace IRSequencer.Gui
 
                 GUILayout.Label(sequenceStatus, dotStyle, GUILayout.Width(20), GUILayout.Height(22));
 
-                sq.name = GUILayout.TextArea(sq.name, textFieldStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
+                sq.name = GUILayout.TextField(sq.name, textFieldStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
 
                 if (GUILayout.Button(new GUIContent(TextureLoader.PlayIcon, "Play"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
                 {
@@ -873,13 +873,13 @@ namespace IRSequencer.Gui
 
                                 GUILayout.Label (servo.Name, nameStyle, GUILayout.ExpandWidth (true), GUILayout.Height (22));
 
-                                tmpString = GUILayout.TextArea (string.Format ("{0:#0.0#}", avCommand.position), textFieldStyle, GUILayout.Width (40), GUILayout.Height (22));
+                                tmpString = GUILayout.TextField (string.Format ("{0:#0.0#}", avCommand.position), textFieldStyle, GUILayout.Width (40), GUILayout.Height (22));
                                 if (float.TryParse (tmpString, out tmpValue)) 
                                 {
                                     avCommand.position = Mathf.Clamp(tmpValue, avCommand.servo.MinPosition, avCommand.servo.MaxPosition);
                                 }
                                 GUILayout.Label ("@", nameStyle, GUILayout.Height (22));
-                                tmpString = GUILayout.TextArea (string.Format ("{0:#0.0#}", avCommand.speedMultiplier), textFieldStyle, GUILayout.Width (30), GUILayout.Height (22));
+                                tmpString = GUILayout.TextField (string.Format ("{0:#0.0#}", avCommand.speedMultiplier), textFieldStyle, GUILayout.Width (30), GUILayout.Height (22));
                                 if (float.TryParse (tmpString, out tmpValue)) 
                                 {
                                     avCommand.speedMultiplier = Mathf.Clamp (tmpValue, 0.05f, 1000f);
@@ -943,7 +943,7 @@ namespace IRSequencer.Gui
             }
 
             GUILayout.Label("Delay for ", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-            tmpString = GUILayout.TextArea(string.Format("{0:#0.0#}", currentDelay), textFieldStyle, GUILayout.Width(40), GUILayout.Height(22));
+            tmpString = GUILayout.TextField(string.Format("{0:#0.0#}", currentDelay), textFieldStyle, GUILayout.Width(40), GUILayout.Height(22));
             if (float.TryParse(tmpString, out tmpValue))
             {
                 currentDelay = Mathf.Clamp(tmpValue, 0f, 600f);
@@ -987,7 +987,7 @@ namespace IRSequencer.Gui
                 currentGotoIndex = Math.Max (currentGotoIndex - 1, 0);
                 currentGotoIndexString = (currentGotoIndex+1).ToString ();
             }
-            currentGotoIndexString = GUILayout.TextArea(string.Format("{0:#0}", currentGotoIndexString), textFieldStyle, GUILayout.Width(25), GUILayout.Height(22));
+            currentGotoIndexString = GUILayout.TextField(string.Format("{0:#0}", currentGotoIndexString), textFieldStyle, GUILayout.Width(25), GUILayout.Height(22));
 
             if (float.TryParse(currentGotoIndexString, out tmpValue))
             {
@@ -1007,7 +1007,7 @@ namespace IRSequencer.Gui
                 currentGotoCounter = Math.Max (currentGotoCounter - 1, -1);
             }
 
-            tmpString = GUILayout.TextArea(string.Format("{0:#0}", currentGotoCounter), textFieldStyle, GUILayout.Width(25), GUILayout.Height(22));
+            tmpString = GUILayout.TextField(string.Format("{0:#0}", currentGotoCounter), textFieldStyle, GUILayout.Width(25), GUILayout.Height(22));
             if (float.TryParse(tmpString, out tmpValue))
             {
                 currentGotoCounter = (int)Math.Max(tmpValue, -1);
