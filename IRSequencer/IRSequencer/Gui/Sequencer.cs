@@ -363,7 +363,7 @@ namespace IRSequencer.Gui
                 };
 
                 buttonStyle = new GUIStyle(GUI.skin.button);
-                buttonStyle.padding =  new RectOffset(2, 2, 2, 2);;
+                buttonStyle.padding =  new RectOffset(2, 2, 2, 2);
                 buttonStyle.alignment = TextAnchor.MiddleCenter;
 
                 nameStyle = new GUIStyle(GUI.skin.label)
