@@ -39,6 +39,7 @@ namespace IRSequencer.Gui
         private static GUIStyle buttonStyle;
         private static GUIStyle nameStyle;
         private static GUIStyle dotStyle;
+        private static GUIStyle playheadStyle;
         private static GUIStyle textFieldStyle;
 
         private static Color solidColor;
@@ -170,6 +171,10 @@ namespace IRSequencer.Gui
             {
                 timeStarted = 0f;
                 gotoCounter = gotoCommandCounter;
+
+                isActive = false;
+                isFinished = false;
+
                 if (wait)
                     return;
                 else if (servo != null)
@@ -177,8 +182,6 @@ namespace IRSequencer.Gui
                     servo.Stop();
                 }
 
-                isActive = false;
-                isFinished = false;
             }
 
         }
@@ -293,11 +296,15 @@ namespace IRSequencer.Gui
             {
                 if (commands == null) return;
 
-                // should find last finished command and reset sequence index to it
-                lastCommandIndex = commands.IndexOf(commands.FindLast(s => s.isFinished));
+                // find the first Active command and stop it and everything that is after
+                lastCommandIndex = commands.FindIndex(s => s.isActive);
+                
+                // if there are no Active commands - set the LastCommandIndex to last finished command + 1
+                if (lastCommandIndex == -1)
+                    lastCommandIndex = commands.FindLastIndex(s => s.isFinished) + 1;
 
-                //now we need to stop all the commands with index > lastCommandIndex
-                for (int i = lastCommandIndex+1; i < commands.Count; i++)
+                //now we need to stop all the commands with index >= lastCommandIndex
+                for (int i = lastCommandIndex; i < commands.Count; i++)
                 {
                     commands[i].Stop();
                 }
@@ -373,6 +380,14 @@ namespace IRSequencer.Gui
                     clipping = TextClipping.Overflow
                 };
 
+                playheadStyle = new GUIStyle()
+                {
+                    normal =
+                    {
+                        background = TextureLoader.PlayheadBG
+                    },
+                };
+
                 dotStyle = new GUIStyle(GUI.skin.label)
                 {
                     richText = true,
@@ -383,6 +398,8 @@ namespace IRSequencer.Gui
 
                 solidColor = new Color (1, 1, 1, 1);
                 opaqueColor = new Color (1, 1, 1, 0.7f);
+
+                GUISetupDone = true;
             }
         }
 
@@ -393,7 +410,7 @@ namespace IRSequencer.Gui
                 try
                 {
                     var texture = new Texture2D(32, 32, TextureFormat.RGBA32, false);
-                    TextureLoader.LoadImageFromFile(texture, "presetmode.png");
+                    TextureLoader.LoadImageFromFile(texture, "icon_seq_button.png");
                     
                     appLauncherButton = ApplicationLauncher.Instance.AddModApplication(delegate { GUIEnabled = true; },
                         delegate { GUIEnabled = false; }, null, null, null, null,
@@ -1039,7 +1056,13 @@ namespace IRSequencer.Gui
             {
                 BasicCommand bc = openSequence.commands[i];
 
-                GUILayout.BeginHorizontal();
+                if (openSequence.lastCommandIndex == i)
+                {
+                    GUILayout.BeginHorizontal(playheadStyle);
+                }
+                else
+                    GUILayout.BeginHorizontal();
+
                 GUI.color = solidColor;
                 string commandStatus = (bc.isActive || openSequence.lastCommandIndex == i) ? "<color=lime>■</color>" : bc.isFinished ? "<color=green>■</color>" : "<color=silver>■</color>";
                 GUILayout.Label(commandStatus, dotStyle, GUILayout.Width(20), GUILayout.Height(22));
@@ -1105,7 +1128,9 @@ namespace IRSequencer.Gui
 
                 if (GUILayout.Button(TextureLoader.TrashIcon, buttonStyle, GUILayout.Width(20), GUILayout.Height(22)))
                 {
-                   openSequence.commands.RemoveAt(i);
+                    openSequence.Pause();
+                    openSequence.commands.RemoveAt(i);
+                    openSequence.Reset();
                 }
                 GUI.color = opaqueColor;
                 GUILayout.EndHorizontal();
@@ -1122,7 +1147,7 @@ namespace IRSequencer.Gui
                 openSequence.Start();
             }
 
-            if (GUILayout.Button("Pause", buttonStyle, GUILayout.Height(22)))
+            if (GUILayout.Button("Stop", buttonStyle, GUILayout.Height(22)))
             {
                 openSequence.Pause();
             }

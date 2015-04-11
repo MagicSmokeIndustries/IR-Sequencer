@@ -9,6 +9,7 @@ namespace IRSequencer.Utility
     {
         private static bool isReady;
         internal static Texture2D EditorBackgroundText { get; private set; }
+        internal static Texture2D PlayheadBG { get; private set; }
 
         internal static Texture2D ExpandIcon { get; private set; }
         internal static Texture2D CollapseIcon { get; private set; }
@@ -53,8 +54,56 @@ namespace IRSequencer.Utility
         {
             if (!isReady)
             {
+                //const string texPath = "MagicSmokeIndustries/Textures/";
                 EditorBackgroundText = CreateTextureFromColor(1, 1, new Color32(81, 86, 94, 255));
+                PlayheadBG = CreateTextureFromColor(1, 1, new Color32(85, 170, 0, 64));
 
+                /*ExpandIcon = GameDatabase.Instance.GetTexture(texPath + "expand.png", false);
+
+                CollapseIcon = GameDatabase.Instance.GetTexture(texPath + "collapse.png", false);
+
+                LeftIcon = GameDatabase.Instance.GetTexture(texPath + "left.png", false);
+
+                RightIcon = GameDatabase.Instance.GetTexture(texPath + "right.png", false);
+
+                LeftToggleIcon = GameDatabase.Instance.GetTexture(texPath + "left_toggle.png", false);
+
+                RightToggleIcon = GameDatabase.Instance.GetTexture(texPath + "right_toggle.png", false);
+
+                RevertIcon = GameDatabase.Instance.GetTexture(texPath + "revert.png", false);
+
+                AutoRevertIcon = GameDatabase.Instance.GetTexture(texPath + "auto_revert.png", false);
+
+                DownIcon = GameDatabase.Instance.GetTexture(texPath + "down.png", false);
+
+                UpIcon = GameDatabase.Instance.GetTexture(texPath + "up.png", false);
+
+                TrashIcon = GameDatabase.Instance.GetTexture(texPath + "trash.png", false);
+
+                PresetsIcon = GameDatabase.Instance.GetTexture(texPath + "presets.png", false);
+
+                PresetModeIcon = GameDatabase.Instance.GetTexture(texPath + "presetmode.png", false);
+
+                LockedIcon = GameDatabase.Instance.GetTexture(texPath + "locked.png", false);
+
+                UnlockedIcon = GameDatabase.Instance.GetTexture(texPath + "unlocked.png", false);
+
+                NextIcon = GameDatabase.Instance.GetTexture(texPath + "next.png", false);
+
+                PrevIcon = GameDatabase.Instance.GetTexture(texPath + "prev.png", false);
+
+                BgIcon = GameDatabase.Instance.GetTexture(texPath + "icon_background.png", false);
+
+                PlayIcon = GameDatabase.Instance.GetTexture(texPath + "play.png", false);
+
+                PauseIcon = GameDatabase.Instance.GetTexture(texPath + "pause.png", false);
+
+                StopIcon = GameDatabase.Instance.GetTexture(texPath + "stop.png", false);
+
+                EditIcon = GameDatabase.Instance.GetTexture(texPath + "edit.png", false);
+
+                CloneIcon = GameDatabase.Instance.GetTexture(texPath + "clone.png", false);
+                */
                 ExpandIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
                 LoadImageFromFile(ExpandIcon, "expand.png");
 
@@ -123,7 +172,7 @@ namespace IRSequencer.Utility
 
                 CloneIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
                 LoadImageFromFile(CloneIcon, "clone.png");
-
+                
                 isReady = true;
             }
         }
