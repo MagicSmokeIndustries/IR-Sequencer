@@ -275,6 +275,9 @@ namespace IRSequencer.Gui
                     Logger.Log ("[Sequencer] Cannot start sequence " + name + " as it is Locked", Logger.Level.Debug);
                     return;
                 }
+                //if the sequence is marked as Finished - reset it and start anew.
+                if (isFinished)
+                    Reset();
 
                 isActive = true;
 
