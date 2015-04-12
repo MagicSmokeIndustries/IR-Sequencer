@@ -768,14 +768,14 @@ namespace IRSequencer.Gui
                     buttonStyle, GUILayout.Width(22), GUILayout.Height(22));
                 SetTooltipText ();
 
-                if(playToggle)
+                if(playToggle && !sq.isLocked)
                 {
                     if (playToggle != sq.isActive)
                     {
                         sq.Start();
                     }
                 }
-                else
+                else if (!sq.isLocked)
                 {
                     if (playToggle != sq.isActive && !sq.isFinished)
                     {
@@ -785,7 +785,8 @@ namespace IRSequencer.Gui
                 
                 if (GUILayout.Button(new GUIContent(TextureLoader.StopIcon, "Stop"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
                 {
-                    sq.Reset();
+                    if (!sq.isLocked)
+                        sq.Reset();
                 }
                 SetTooltipText ();
 
@@ -1214,14 +1215,14 @@ namespace IRSequencer.Gui
                    buttonStyle, GUILayout.Width(100), GUILayout.Height(22));
             SetTooltipText();
 
-            if (playToggle)
+            if (playToggle && !openSequence.isLocked)
             {
                 if (playToggle != openSequence.isActive)
                 {
                     openSequence.Start();
                 }
             }
-            else
+            else if (!openSequence.isLocked)
             {
                 if (playToggle != openSequence.isActive && !openSequence.isFinished)
                 {
@@ -1231,8 +1232,11 @@ namespace IRSequencer.Gui
             
             if (GUILayout.Button("Stop", buttonStyle, GUILayout.Width(100), GUILayout.Height(22)))
             {
-                openSequence.Pause();
-                openSequence.Reset();
+                if (!openSequence.isLocked)
+                {
+                    openSequence.Pause();
+                    openSequence.Reset();
+                }
             }
 
             openSequence.isLooped = GUILayout.Toggle(openSequence.isLooped, "Looping", buttonStyle, GUILayout.Height(22));
