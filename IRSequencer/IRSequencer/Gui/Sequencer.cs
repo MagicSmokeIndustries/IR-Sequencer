@@ -197,6 +197,18 @@ namespace IRSequencer.Gui
             public bool isLocked = false; //sequence is Locked if any of the servos in its commands list are busy
             public string name = "";
 
+            public bool IsPaused { 
+                get 
+                {
+                    if (commands == null || lastCommandIndex == -1) return false;
+                    else
+                    {
+                        return (!commands[lastCommandIndex].isActive); 
+                    }
+                } 
+            
+            }
+
             public Sequence ()
             {
                 commands = new List<BasicCommand>();
@@ -739,6 +751,8 @@ namespace IRSequencer.Gui
                 string sequenceStatus = (sq.isActive) ? "<color=lime>■</color>" : sq.isFinished ? "<color=green>■</color>" : "<color=silver>■</color>";
                 if (sq.isLocked)
                     sequenceStatus = "<color=red>■</color>";
+                if (sq.IsPaused)
+                    sequenceStatus = "<color=yellow>■</color>";
                 GUI.color = solidColor;
 
                 GUILayout.Label(sequenceStatus, dotStyle, GUILayout.Width(20), GUILayout.Height(22));
@@ -1024,7 +1038,7 @@ namespace IRSequencer.Gui
                 var newCommand = new BasicCommand(true);
                 openSequence.commands.Add(newCommand);
             }
-            GUILayout.Label("Wait for finish", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
+            GUILayout.Label("Wait for Moves", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
@@ -1040,7 +1054,7 @@ namespace IRSequencer.Gui
 
             GUILayout.BeginVertical();
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Go To command #", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
+            GUILayout.Label("Go To Command #", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
             if (GUILayout.Button ("-", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
             {
                 currentGotoIndex = Math.Max (currentGotoIndex - 1, 0);
