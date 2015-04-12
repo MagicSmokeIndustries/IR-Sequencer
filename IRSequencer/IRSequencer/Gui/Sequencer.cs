@@ -398,7 +398,7 @@ namespace IRSequencer.Gui
                 {
                     padding = new RectOffset(0, 0, 0, 0),
                     border = new RectOffset(0, 0, 0, 0),
-                    margin = new RectOffset(0, 0, 0, 0),
+                    margin = new RectOffset(0, 0, -3, -3),
                     normal =
                     {
                         background = TextureLoader.PlayheadBG
@@ -1158,7 +1158,7 @@ namespace IRSequencer.Gui
                     }
                 }
                 else
-                    GUILayout.Space(25);
+                    GUILayout.Space(24);
 
                 if (i < openSequence.commands.Count - 1)
                 {
@@ -1172,7 +1172,7 @@ namespace IRSequencer.Gui
                     }
                 }
                 else
-                    GUILayout.Space(25);
+                    GUILayout.Space(24);
 
                 if (GUILayout.Button(TextureLoader.TrashIcon, buttonStyle, GUILayout.Width(20), GUILayout.Height(22)))
                 {
@@ -1260,7 +1260,7 @@ namespace IRSequencer.Gui
             }
 
             GUI.skin = DefaultSkinProvider.DefaultSkin;
-            //GUI.color = opaqueColor;
+            GUI.color = opaqueColor;
 
             if (!GUISetupDone)
                 InitGUI();
