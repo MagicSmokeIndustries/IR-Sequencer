@@ -9,32 +9,22 @@ namespace IRSequencer.Utility
     {
         private static bool isReady;
         internal static Texture2D EditorBackgroundText { get; private set; }
+        //internal static Texture2D Transparent { get; private set; }
         internal static Texture2D PlayheadBG { get; private set; }
+        internal static Texture2D PlayheadBGPaused { get; private set; }
 
         internal static Texture2D ExpandIcon { get; private set; }
         internal static Texture2D CollapseIcon { get; private set; }
-        internal static Texture2D LeftIcon { get; private set; }
-        internal static Texture2D RightIcon { get; private set; }
-        internal static Texture2D LeftToggleIcon { get; private set; }
-        internal static Texture2D RightToggleIcon { get; private set; }
-        internal static Texture2D RevertIcon { get; private set; }
-        internal static Texture2D AutoRevertIcon { get; private set; }
         internal static Texture2D DownIcon { get; private set; }
         internal static Texture2D UpIcon { get; private set; }
         internal static Texture2D TrashIcon { get; private set; }
-        internal static Texture2D PresetsIcon { get; private set; }
-        internal static Texture2D PresetModeIcon { get; private set; }
-        internal static Texture2D LockedIcon { get; private set; }
-        internal static Texture2D UnlockedIcon { get; private set; }
-        internal static Texture2D NextIcon { get; private set; }
-        internal static Texture2D PrevIcon { get; private set; }
-
         internal static Texture2D PlayIcon { get; private set; }
         internal static Texture2D PauseIcon { get; private set; }
         internal static Texture2D StopIcon { get; private set; }
         internal static Texture2D EditIcon { get; private set; }
         internal static Texture2D CloneIcon { get; private set; }
-
+        internal static Texture2D LoopIcon { get; private set; }
+        internal static Texture2D LoopingIcon { get; private set; }
 
         internal static Texture2D BgIcon { get; private set; }
 
@@ -57,76 +47,14 @@ namespace IRSequencer.Utility
                 //const string texPath = "MagicSmokeIndustries/Textures/";
                 EditorBackgroundText = CreateTextureFromColor(1, 1, new Color32(81, 86, 94, 255));
                 PlayheadBG = CreateTextureFromColor(1, 1, new Color32(85, 170, 0, 64));
-
-                /*ExpandIcon = GameDatabase.Instance.GetTexture(texPath + "expand.png", false);
-
-                CollapseIcon = GameDatabase.Instance.GetTexture(texPath + "collapse.png", false);
-
-                LeftIcon = GameDatabase.Instance.GetTexture(texPath + "left.png", false);
-
-                RightIcon = GameDatabase.Instance.GetTexture(texPath + "right.png", false);
-
-                LeftToggleIcon = GameDatabase.Instance.GetTexture(texPath + "left_toggle.png", false);
-
-                RightToggleIcon = GameDatabase.Instance.GetTexture(texPath + "right_toggle.png", false);
-
-                RevertIcon = GameDatabase.Instance.GetTexture(texPath + "revert.png", false);
-
-                AutoRevertIcon = GameDatabase.Instance.GetTexture(texPath + "auto_revert.png", false);
-
-                DownIcon = GameDatabase.Instance.GetTexture(texPath + "down.png", false);
-
-                UpIcon = GameDatabase.Instance.GetTexture(texPath + "up.png", false);
-
-                TrashIcon = GameDatabase.Instance.GetTexture(texPath + "trash.png", false);
-
-                PresetsIcon = GameDatabase.Instance.GetTexture(texPath + "presets.png", false);
-
-                PresetModeIcon = GameDatabase.Instance.GetTexture(texPath + "presetmode.png", false);
-
-                LockedIcon = GameDatabase.Instance.GetTexture(texPath + "locked.png", false);
-
-                UnlockedIcon = GameDatabase.Instance.GetTexture(texPath + "unlocked.png", false);
-
-                NextIcon = GameDatabase.Instance.GetTexture(texPath + "next.png", false);
-
-                PrevIcon = GameDatabase.Instance.GetTexture(texPath + "prev.png", false);
-
-                BgIcon = GameDatabase.Instance.GetTexture(texPath + "icon_background.png", false);
-
-                PlayIcon = GameDatabase.Instance.GetTexture(texPath + "play.png", false);
-
-                PauseIcon = GameDatabase.Instance.GetTexture(texPath + "pause.png", false);
-
-                StopIcon = GameDatabase.Instance.GetTexture(texPath + "stop.png", false);
-
-                EditIcon = GameDatabase.Instance.GetTexture(texPath + "edit.png", false);
-
-                CloneIcon = GameDatabase.Instance.GetTexture(texPath + "clone.png", false);
-                */
+                PlayheadBGPaused = CreateTextureFromColor(1, 1, new Color32(255, 170, 0, 64));
+                //Transparent = CreateTextureFromColor(1, 1, new Color32(255, 255, 255, 0));
+                
                 ExpandIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
                 LoadImageFromFile(ExpandIcon, "expand.png");
 
                 CollapseIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
                 LoadImageFromFile(CollapseIcon, "collapse.png");
-
-                LeftIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
-                LoadImageFromFile(LeftIcon, "left.png");
-
-                RightIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
-                LoadImageFromFile(RightIcon, "right.png");
-
-                LeftToggleIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
-                LoadImageFromFile(LeftToggleIcon, "left_toggle.png");
-
-                RightToggleIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
-                LoadImageFromFile(RightToggleIcon, "right_toggle.png");
-
-                RevertIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
-                LoadImageFromFile(RevertIcon, "revert.png");
-
-                AutoRevertIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
-                LoadImageFromFile(AutoRevertIcon, "auto_revert.png");
 
                 DownIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
                 LoadImageFromFile(DownIcon, "down.png");
@@ -136,24 +64,6 @@ namespace IRSequencer.Utility
 
                 TrashIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
                 LoadImageFromFile(TrashIcon, "trash.png");
-
-                PresetsIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
-                LoadImageFromFile(PresetsIcon, "presets.png");
-
-                PresetModeIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
-                LoadImageFromFile(PresetModeIcon, "presetmode.png");
-
-                LockedIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
-                LoadImageFromFile(LockedIcon, "locked.png");
-
-                UnlockedIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
-                LoadImageFromFile(UnlockedIcon, "unlocked.png");
-
-                NextIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
-                LoadImageFromFile(NextIcon, "next.png");
-
-                PrevIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
-                LoadImageFromFile(PrevIcon, "prev.png");
 
                 BgIcon = new Texture2D(9, 9, TextureFormat.ARGB32, false);
                 LoadImageFromFile(BgIcon, "icon_background.png");
@@ -172,7 +82,13 @@ namespace IRSequencer.Utility
 
                 CloneIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
                 LoadImageFromFile(CloneIcon, "clone.png");
-                
+
+                LoopIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
+                LoadImageFromFile(LoopIcon, "loop.png");
+
+                LoopingIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
+                LoadImageFromFile(LoopingIcon, "looping.png");
+
                 isReady = true;
             }
         }
