@@ -200,9 +200,11 @@ namespace IRSequencer.Gui
             public bool IsPaused { 
                 get 
                 {
-                    if (commands == null || lastCommandIndex == -1) return false;
+                    if (commands == null || lastCommandIndex < 0) return false;
                     else
                     {
+                        if (lastCommandIndex >= commands.Count) 
+                            return false;
                         return (!commands[lastCommandIndex].isActive); 
                     }
                 } 
@@ -749,10 +751,12 @@ namespace IRSequencer.Gui
                 GUILayout.BeginHorizontal();
 
                 string sequenceStatus = (sq.isActive) ? "<color=lime>■</color>" : sq.isFinished ? "<color=green>■</color>" : "<color=silver>■</color>";
-                if (sq.isLocked)
-                    sequenceStatus = "<color=red>■</color>";
                 if (sq.IsPaused)
                     sequenceStatus = "<color=yellow>■</color>";
+
+                if (sq.isLocked)
+                    sequenceStatus = "<color=red>■</color>";
+                
                 GUI.color = solidColor;
 
                 GUILayout.Label(sequenceStatus, dotStyle, GUILayout.Width(20), GUILayout.Height(22));
