@@ -783,7 +783,7 @@ namespace IRSequencer.Gui
                     }
                 }
                 
-                if (GUILayout.Button(new GUIContent(TextureLoader.StopIcon, "Reset"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
+                if (GUILayout.Button(new GUIContent(TextureLoader.StopIcon, "Stop"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
                 {
                     sq.Reset();
                 }
