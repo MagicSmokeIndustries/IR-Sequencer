@@ -84,7 +84,7 @@ namespace IRSequencer.Gui
 
         public class BasicCommand
         {
-            internal IRWrapper.IRAPI.IRServo servo;
+            internal IRWrapper.IServo servo;
             public float timeStarted;
             public bool wait;
             public float waitTime=0f;
@@ -97,7 +97,7 @@ namespace IRSequencer.Gui
             public int gotoCounter = -1;
             private int gotoCommandCounter = -1;
 
-            public BasicCommand(IRWrapper.IRAPI.IRServo s, float p, float sp)
+            public BasicCommand(IRWrapper.IServo s, float p, float sp)
             {
                 servo = s;
                 position = p;
@@ -473,7 +473,7 @@ namespace IRSequencer.Gui
             {
                 if (sq.commands == null) continue;
 
-                var affectedServos = new List <IRWrapper.IRAPI.IRServo> ();
+                var affectedServos = new List <IRWrapper.IServo> ();
                 sq.commands.FindAll (s => s.servo != null).ForEach ((BasicCommand c) => affectedServos.Add (c.servo));
 
                 if (affectedServos.Any ()) 
@@ -877,11 +877,11 @@ namespace IRSequencer.Gui
             GUI.color = opaqueColor;
             GUILayout.EndHorizontal();
 
-            var allServos = new List<IRWrapper.IRAPI.IRServo>();
+            var allServos = new List<IRWrapper.IServo>();
 
             if (currentMode == 0) 
             {
-                foreach (IRWrapper.IRAPI.IRControlGroup g in IRWrapper.IRController.ServoGroups) 
+                foreach (IRWrapper.IControlGroup g in IRWrapper.IRController.ServoGroups) 
                 {
                     allServos.AddRange (g.Servos);
                 }
@@ -895,7 +895,7 @@ namespace IRSequencer.Gui
                 {
                     availableServoCommands.Clear ();
                     //rebuild the list of available commands
-                    foreach (IRWrapper.IRAPI.IRServo s in allServos) 
+                    foreach (IRWrapper.IServo s in allServos) 
                     {
                         var bc = new BasicCommand (s, s.Position, 1f);
                         availableServoCommands.Add (bc);
@@ -905,7 +905,7 @@ namespace IRSequencer.Gui
                 servoListScroll = GUILayout.BeginScrollView (servoListScroll, false, false, maxHeight);
                 for (int i = 0; i < IRWrapper.IRController.ServoGroups.Count; i++) 
                 {
-                    IRWrapper.IRAPI.IRControlGroup g = IRWrapper.IRController.ServoGroups [i];
+                    IRWrapper.IControlGroup g = IRWrapper.IRController.ServoGroups [i];
 
                     if (g.Servos.Any ()) 
                     {
@@ -932,17 +932,19 @@ namespace IRSequencer.Gui
                             GUILayout.BeginHorizontal (GUILayout.Height (5));
                             GUILayout.EndHorizontal ();
 
-                            foreach (IRWrapper.IRAPI.IRServo servo in g.Servos) 
+                            foreach (IRWrapper.IServo servo in g.Servos) 
                             {
                                 GUILayout.BeginHorizontal ();
-                                var avCommand = availableServoCommands.FirstOrDefault (t => t.servo == servo);
+                                GUI.color = solidColor;
+
+                                var avCommand = availableServoCommands.FirstOrDefault(t => t.servo.Equals(servo));
 
                                 if (avCommand == null) 
                                 {
                                     Logger.Log ("[Sequencer] Cannot find matching command for servo " + servo.Name, Logger.Level.Debug);
                                     return;
                                 }
-                                GUI.color = solidColor;
+                               
 
                                 if (GUILayout.Button ("Add", buttonStyle, GUILayout.Width (30), GUILayout.Height (22))) 
                                 {
@@ -951,7 +953,7 @@ namespace IRSequencer.Gui
                                     
                                     openSequence.commands.Add (new BasicCommand (avCommand));
                                 }
-
+                                
                                 GUILayout.Label (servo.Name, nameStyle, GUILayout.ExpandWidth (true), GUILayout.Height (22));
 
                                 Rect last = GUILayoutUtility.GetLastRect();
