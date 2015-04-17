@@ -116,7 +116,7 @@ namespace IRSequencer.Core
             }
             else
             {
-                serializedCommand += servo.UID + "|" + position + "|" + speedMultiplier;
+                serializedCommand += servo.UID + "|" + position + "|" + speedMultiplier + "|";
             }
             serializedCommand += wait + "|" + waitTime + "|";
             serializedCommand += gotoIndex + "|" + gotoCommandCounter + "|";

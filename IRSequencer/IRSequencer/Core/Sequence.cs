@@ -190,17 +190,17 @@ namespace IRSequencer.Core
 
         public string Serialize()
         {
-            var serilizedSequence = name + "{";
+            var serilizedSequence = name + "<";
 
             if (commands == null)
-                return serilizedSequence + "}";
+                return serilizedSequence + ">";
 
             foreach (BasicCommand bc in commands)
             {
                 serilizedSequence += ":" + bc.Serialize ();
             }
 
-            serilizedSequence += "}";
+            serilizedSequence += ">";
 
             return serilizedSequence;
         }

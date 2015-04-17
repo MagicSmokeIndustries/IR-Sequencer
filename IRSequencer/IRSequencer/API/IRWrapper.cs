@@ -357,7 +357,7 @@ namespace IRSequencer.API
             private PropertyInfo positionProperty;
             private PropertyInfo minConfigPositionProperty;
 
-            private PropertyInfo PartProperty;
+            private PropertyInfo UIDProperty;
 
             private MethodInfo moveRightMethod;
             private MethodInfo moveLeftMethod;
@@ -379,7 +379,7 @@ namespace IRSequencer.API
             {
                 nameProperty = IRServoPartType.GetProperty("Name");
                 highlightProperty = IRServoPartType.GetProperty("Highlight");
-                PartProperty = IRServoPartType.GetProperty ("Part");
+                UIDProperty = IRServoPartType.GetProperty ("UID");
 
                 var mechanismProperty = IRServoType.GetProperty("Mechanism");
                 actualServoMechanism = mechanismProperty.GetValue(actualServo, null);
@@ -414,9 +414,9 @@ namespace IRSequencer.API
 
             private readonly object actualServo;
 
-            public uint Part
+            public uint UID
             {
-                get { return (uint)PartProperty.GetValue(actualServo, null); }
+                get { return (uint)UIDProperty.GetValue(actualServo, null); }
             }
 
             public string Name
@@ -611,7 +611,7 @@ namespace IRSequencer.API
 
         public interface IServo : IEquatable<IServo>
         {
-            uint Part { get; }
+            uint UID { get; }
 
             string Name { get; set; }
 
