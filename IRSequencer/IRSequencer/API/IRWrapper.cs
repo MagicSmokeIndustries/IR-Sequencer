@@ -357,6 +357,8 @@ namespace IRSequencer.API
             private PropertyInfo positionProperty;
             private PropertyInfo minConfigPositionProperty;
 
+            private PropertyInfo PartProperty;
+
             private MethodInfo moveRightMethod;
             private MethodInfo moveLeftMethod;
             private MethodInfo moveCenterMethod;
@@ -377,6 +379,7 @@ namespace IRSequencer.API
             {
                 nameProperty = IRServoPartType.GetProperty("Name");
                 highlightProperty = IRServoPartType.GetProperty("Highlight");
+                PartProperty = IRServoPartType.GetProperty ("Part");
 
                 var mechanismProperty = IRServoType.GetProperty("Mechanism");
                 actualServoMechanism = mechanismProperty.GetValue(actualServo, null);
@@ -411,6 +414,10 @@ namespace IRSequencer.API
 
             private readonly object actualServo;
 
+            public uint Part
+            {
+                get { return (uint)PartProperty.GetValue(actualServo, null); }
+            }
 
             public string Name
             {
@@ -533,8 +540,8 @@ namespace IRSequencer.API
 
             public bool Equals(IServo other)
             {
-                var controlGroup = other as IRServo;
-                return controlGroup != null && Equals(controlGroup);
+                var servo = other as IRServo;
+                return servo != null && Equals(servo);
             }
 
             public override bool Equals(object o)
@@ -604,6 +611,8 @@ namespace IRSequencer.API
 
         public interface IServo : IEquatable<IServo>
         {
+            uint Part { get; }
+
             string Name { get; set; }
 
             bool Highlight { set; }
