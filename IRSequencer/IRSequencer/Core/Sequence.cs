@@ -190,7 +190,7 @@ namespace IRSequencer.Core
 
         public string Serialize()
         {
-            var serilizedSequence = name + "<";
+            var serilizedSequence = name + "|" + isLooped + "<";
 
             if (commands == null)
                 return serilizedSequence + ">";

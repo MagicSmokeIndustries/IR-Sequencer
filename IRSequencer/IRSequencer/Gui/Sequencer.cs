@@ -8,6 +8,7 @@ using KSP.IO;
 using IRSequencer.API;
 using IRSequencer.Utility;
 using IRSequencer.Core;
+using IRSequencer.Module;
 
 namespace IRSequencer.Gui
 {
@@ -324,6 +325,40 @@ namespace IRSequencer.Gui
             }
         }
 
+        private void OnVesselChange(Vessel v)
+        {
+            sequences.Clear();
+
+            //find module SequencerStorage and force loading of sequences
+            var storage = v.FindPartModulesImplementing<SequencerStorage>();
+            if (storage == null)
+            {
+                Logger.Log("Could not find SequencerStorage module to load sequences from", Logger.Level.Debug);
+                return;
+            }
+            else
+            {
+                try
+                {
+                    if  (v == FlightGlobals.ActiveVessel)
+                        storage[0].LoadSequencesEvent();
+                }
+                catch (Exception e)
+                {
+                    Logger.Log("[IRSequencer] Exception in OnVesselChange: " + e.Message);
+                }
+            }
+
+            Logger.Log("[IRSequencer] OnVesselChange finished, sequences count=" + sequences.Count);
+        }
+
+        private void OnVesselWasModified(Vessel v)
+        {
+            if (v == FlightGlobals.ActiveVessel)
+            {
+                OnVesselChange(v);
+            }
+        }
 
         private void Awake()
         {
@@ -338,6 +373,8 @@ namespace IRSequencer.Gui
             sequences = new List<Sequence>();
             sequences.Clear();
 
+            GameEvents.onVesselChange.Add(OnVesselChange);
+            GameEvents.onVesselWasModified.Add(OnVesselWasModified);
             GameEvents.onGUIApplicationLauncherReady.Add(OnAppReady);
             
             Logger.Log("[Sequencer] Awake successful", Logger.Level.Debug);
@@ -372,6 +409,9 @@ namespace IRSequencer.Gui
             GameEvents.onShowUI.Remove(OnShowUI);
             GameEvents.onHideUI.Remove(OnHideUI);
 
+            GameEvents.onVesselChange.Remove(OnVesselChange);
+            GameEvents.onVesselWasModified.Remove(OnVesselWasModified);
+            
             Sequencer.Instance.isReady = false;
             SaveConfigXml();
 

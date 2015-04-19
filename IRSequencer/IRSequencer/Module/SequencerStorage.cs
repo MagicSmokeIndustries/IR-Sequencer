@@ -18,7 +18,6 @@ namespace IRSequencer.Module
             if (Sequencer.Instance)
             {
                 var message = "";
-
                 foreach(Sequence s in Sequencer.Instance.sequences)
                 {
                     message += s.Serialize () + "$";
@@ -27,25 +26,42 @@ namespace IRSequencer.Module
                 //ScreenMessages.PostScreenMessage (message);
 
                 serializedSequences = message;
+                Logger.Log(string.Format("Successfully Saved {0} Sequences", Sequencer.Instance.sequences.Count), Logger.Level.Debug);
+                //ScreenMessages.PostScreenMessage(string.Format("Successfully Saved {0} Sequences", Sequencer.Instance.sequences.Count), 3, ScreenMessageStyle.UPPER_CENTER);
             }
-                
+            else 
+            {
+                //ScreenMessages.PostScreenMessage("Sequencer is not Initialised", 3, ScreenMessageStyle.UPPER_CENTER);
+            }
+            
         }
 
         [KSPEvent(guiActive = true, guiActiveEditor = true, guiName = "Load Sequences")]
         public void LoadSequencesEvent ()
         {
+
+            if (Sequencer.Instance == null)
+                return;
+
+            if (Sequencer.Instance.sequences == null)
+                return;
+
             Sequencer.Instance.sequences.Clear ();
 
             var chunks = serializedSequences.Split ('$');
 
+            int counter = 0;
             foreach (string serializedSequence in chunks)
             {
                 Sequence s;
                 if (TryParseSequence(serializedSequence, out s))
                 {
                     Sequencer.Instance.sequences.Add(s);
+                    counter++;
                 }
             }
+            Logger.Log(string.Format("Successfully Loaded {0} Sequences", counter), Logger.Level.Debug);
+            //ScreenMessages.PostScreenMessage(string.Format("Successfully Loaded {0} Sequences", counter), 3, ScreenMessageStyle.UPPER_CENTER);
         }
 
         public bool TryParseSequence(string s, out Sequence seq)
@@ -55,6 +71,7 @@ namespace IRSequencer.Module
             if (s == "" || !s.Contains("<") || !s.Contains(">"))
             {
                 seq = null;
+                Logger.Log("TryParseSequence, invalid format s=" + s, Logger.Level.Debug);
                 return false;
             }
 
@@ -70,6 +87,16 @@ namespace IRSequencer.Module
                 var seqName = s.Substring(0, s.IndexOf('<'));
                 Logger.Log("TryParseSequence, seqName =" + seqName, Logger.Level.Debug);
 
+                var t = seqName.Split('|');
+                seq.name = t[0];
+                if (t.Length > 1)
+                {
+                    if (!bool.TryParse(t[1], out seq.isLooped))
+                    {
+                        seq.isLooped = false;
+                    }
+                }
+                
                 var seqCommands = s.Substring(s.IndexOf('<') + 1, s.IndexOf('>') - seqName.Length - 1);
 
                 Logger.Log("TryParseSequence, seqCommands=" + seqCommands, Logger.Level.Debug);
@@ -100,7 +127,7 @@ namespace IRSequencer.Module
 
             if (chunks.Length < 8)
             {
-                Logger.Log("Failed parsing BasicCommand from string = " + s, Logger.Level.Debug);
+                Logger.Log("Invalid number of chunks in BasicCommand string: " + s, Logger.Level.Debug);
                 bc = null;
                 return false;
             }
@@ -182,6 +209,17 @@ namespace IRSequencer.Module
         {
         }
 
+        /*private void FixedUpdate()
+        {
+            if (Sequencer.Instance == null)
+                return;
+
+            if (Sequencer.Instance.sequences == null)
+                return;
+
+
+        }*/
+
         //returns basic information on kOSProcessor module in Editor
         public override string GetInfo()
         {
@@ -192,40 +230,35 @@ namespace IRSequencer.Module
 
         public override void OnStart(StartState state)
         {
+            
             if (state == StartState.Editor)
             {
-                
+                return;
             }
+
+            //only load sequences for active craft
+            if (vessel == FlightGlobals.ActiveVessel)            
+                LoadSequencesEvent();
 
             Logger.Log(string.Format("OnStart: {0}", state), Logger.Level.Debug);
-        }
-
-
-        public override void OnLoad(ConfigNode node)
-        {
-            try
-            {
-                // KSP Seems to want to make an instance of my partModule during initial load
-                if (vessel == null) return;
-
-                base.OnLoad(node);
-            }
-            catch (Exception ex) //Intentional Pokemon, if exceptions get out of here it can kill the craft
-            {
-                Logger.Log("ONLOAD Exception: " + ex.TargetSite);
-            }
         }
 
         public override void OnSave(ConfigNode node)
         {
             try
             {
+                //if (vessel == FlightGlobals.ActiveVessel)
+                //    SaveSequencesEvent();
+
                 base.OnSave(node);
+
             }
             catch (Exception ex) //Intentional Pokemon, if exceptions get out of here it can kill the craft
             {
                 Logger.Log("ONSAVE Exception: " + ex.TargetSite);
             }
+
+            Logger.Log("[SeqeuncerStorage] OnSave finished.");
         }
 
     }
