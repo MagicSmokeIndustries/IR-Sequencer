@@ -7,6 +7,8 @@ using UnityEngine;
 using KSP.IO;
 using IRSequencer.API;
 using IRSequencer.Utility;
+using IRSequencer.Core;
+using IRSequencer.Module;
 
 namespace IRSequencer.Gui
 {
@@ -69,9 +71,9 @@ namespace IRSequencer.Gui
             get { return SequencerInstance; }
         }
 
-        private List<Sequence> sequences;
+        internal List<Sequence> sequences;
 
-        private Sequence openSequence;
+        internal Sequence openSequence;
 
         private List<BasicCommand> availableServoCommands;
 
@@ -80,296 +82,6 @@ namespace IRSequencer.Gui
             string assemblyName = Assembly.GetExecutingAssembly().GetName().Name;
             SequencerWindowID = UnityEngine.Random.Range(1000, 2000000) + assemblyName.GetHashCode();
             SequencerEditorWindowID = SequencerWindowID + 1;
-        }
-
-        public class BasicCommand
-        {
-            internal IRWrapper.IRAPI.IRServo servo;
-            public float timeStarted;
-            public bool wait;
-            public float waitTime=0f;
-            public float position;
-            public float speedMultiplier;
-            public bool isActive = false;
-            public bool isFinished = false;
-            public KSPActionGroup ag = KSPActionGroup.None;
-            public int gotoIndex = -1;
-            public int gotoCounter = -1;
-            private int gotoCommandCounter = -1;
-
-            public BasicCommand(IRWrapper.IRAPI.IRServo s, float p, float sp)
-            {
-                servo = s;
-                position = p;
-                speedMultiplier = sp;
-                wait = false;
-            }
-
-            public BasicCommand(bool w)
-            {
-                servo = null;
-                position = 0;
-                speedMultiplier = 0;
-                wait = w;
-            }
-
-            public BasicCommand(bool w, float t) : this(w)
-            {
-                waitTime = t;
-            }
-
-            public BasicCommand(KSPActionGroup g) : this(false)
-            {
-                ag = g;
-            }
-
-            public BasicCommand(int targetIndex, int counter)
-                : this(true)
-            {
-                gotoIndex = targetIndex;
-                gotoCounter = counter;
-                gotoCommandCounter = counter;
-            }
-
-            public BasicCommand(BasicCommand clone)
-            {
-                servo = clone.servo;
-                position = clone.position;
-                speedMultiplier = clone.speedMultiplier;
-                wait = clone.wait;
-                waitTime = clone.waitTime;
-                ag = clone.ag;
-            }
-
-            public void Execute()
-            {
-                isActive = true;
-                timeStarted = UnityEngine.Time.time;
-
-                if (ag != KSPActionGroup.None)
-                {
-                    FlightGlobals.ActiveVessel.ActionGroups.ToggleGroup (ag);
-                    isActive = false;
-                    isFinished = true;
-                    Logger.Log("[Sequencer] Firing ActionGroup = " + ag.ToString(), Logger.Level.Debug);
-                    return;
-                }
-
-                if (wait)
-                {
-                    //wait commands are dealt with separately in FixedUpdate
-                    //all we had to do is mark it as Active and set Timestamp, as we did above
-                }
-                else
-                {
-                    Logger.Log("[Sequencer] Executing command, servoName= " + servo.Name + ", pos=" + position, Logger.Level.Debug);
-                    servo.MoveTo(position, speedMultiplier);
-                }
-            }
-
-            public void Stop()
-            {
-                timeStarted = 0f;
-                gotoCounter = gotoCommandCounter;
-
-                isActive = false;
-                isFinished = false;
-
-                if (wait)
-                    return;
-                else if (servo != null)
-                {
-                    servo.Stop();
-                }
-
-            }
-
-        }
-
-        public class Sequence
-        {
-            internal List<BasicCommand> commands;
-            public bool isLooped = false;
-            public int lastCommandIndex = -1;
-            public bool isActive = false;
-            public bool isFinished = false;
-            public bool isWaiting = false; 
-            public bool isLocked = false; //sequence is Locked if any of the servos in its commands list are busy
-            public string name = "";
-
-            public bool IsPaused { 
-                get 
-                {
-                    if (commands == null || lastCommandIndex < 0) return false;
-                    else
-                    {
-                        if (lastCommandIndex >= commands.Count) 
-                            return false;
-                        return (!commands[lastCommandIndex].isActive); 
-                    }
-                } 
-            
-            }
-
-            public Sequence ()
-            {
-                commands = new List<BasicCommand>();
-                name = "New Sequence";
-            }
-
-            public Sequence (BasicCommand b) : this()
-            {
-                commands.Add(b);
-            }
-
-            public Sequence (Sequence baseSequence) :this()
-            {
-                //commands.AddRange(baseSequence.commands);
-                baseSequence.commands.ForEach(delegate(BasicCommand bc) { commands.Add(new BasicCommand(bc)); });
-                name = "Copy of " + baseSequence.name;
-            }
-
-            public void Resume(int commandIndex)
-            {
-                Logger.Log("[Sequencer] Sequence resumed from index " + commandIndex, Logger.Level.Debug);
-
-                if (commands == null) return;
-
-                if (isLocked)
-                {
-                    Logger.Log ("[Sequencer] Cannot resume sequence " + name + " as it is Locked", Logger.Level.Debug);
-                    return;
-                }
-
-                isActive = true;
-
-                //resume from given index
-                lastCommandIndex = commandIndex;
-                if (lastCommandIndex == -1)
-                    return;
-
-                //now we can start/continue execution
-                //we execute commands until first wait command
-                var nextWaitCommandIndex = commands.FindIndex(lastCommandIndex, s => s.wait);
-                if (nextWaitCommandIndex == -1)
-                {
-                    //there are no Waits left, execute all the rest;
-                    nextWaitCommandIndex = commands.Count;
-                }
-
-                Logger.Log("[Sequencer] nextWaitCommandIndex = " + nextWaitCommandIndex, Logger.Level.Debug);
-
-                for (int i = lastCommandIndex; i < nextWaitCommandIndex; i++)
-                {
-                    commands[i].Execute();
-                }
-
-                lastCommandIndex = nextWaitCommandIndex;
-
-                if (lastCommandIndex < commands.Count)
-                {
-                    //need to put timestamp on that wait command
-                    commands[lastCommandIndex].Execute();
-                    isWaiting = true;
-                    Logger.Log("[Sequencer] Sequence is waiting, lastCommandIndex = " + lastCommandIndex, Logger.Level.Debug);
-                }
-
-
-                Logger.Log("[Sequencer] Sequence Resume finished, lastCommandIndex = " + lastCommandIndex, Logger.Level.Debug);
-                //else we are either finished, or most likely waiting for commands to finish.
-            }
-
-            public void Start()
-            {
-                Logger.Log("[Sequencer] Sequence started", Logger.Level.Debug);
-
-                if (commands == null) return;
-
-                if (isLocked)
-                {
-                    Logger.Log ("[Sequencer] Cannot start sequence " + name + " as it is Locked", Logger.Level.Debug);
-                    return;
-                }
-                //if the sequence is marked as Finished - reset it and start anew.
-                if (isFinished)
-                    Reset();
-
-                isActive = true;
-
-                //find first unfinished command
-                lastCommandIndex = commands.FindIndex(s => s.isFinished == false);
-                Logger.Log("[Sequencer] First unfinished Index = " + lastCommandIndex, Logger.Level.Debug);
-                if (lastCommandIndex == -1)
-                {
-                    //there are no unfinished commands, loop if needed or SetFinished and exit
-                    if(isLooped)
-                    {
-                        Reset();
-                    }
-                    else
-                    {
-                        SetFinished();
-                        return;
-                    }
-                }
-                //now we can start/continue execution
-                //we execute commands until first wait command
-
-                Resume(lastCommandIndex);
-
-                Logger.Log("[Sequencer] Sequence Start finished, lastCommandIndex = " + lastCommandIndex, Logger.Level.Debug);
-                //else we are either finished, or most likely waiting for commands to finish.
-            }
-            public void Pause()
-            {
-                if (commands == null) return;
-
-                // find the first Active command and stop it and everything that is after
-                lastCommandIndex = commands.FindIndex(s => s.isActive);
-                
-                // if there are no Active commands - set the LastCommandIndex to last finished command + 1
-                if (lastCommandIndex == -1)
-                    lastCommandIndex = commands.FindLastIndex(s => s.isFinished) + 1;
-
-                //now we need to stop all the commands with index >= lastCommandIndex
-                for (int i = lastCommandIndex; i < commands.Count; i++)
-                {
-                    commands[i].Stop();
-                }
-
-                isActive = false;
-                isWaiting = false;
-
-                Logger.Log("[Sequencer] Sequence Paused, lastCommandIndex = " + lastCommandIndex, Logger.Level.Debug);
-            }
-
-            public void Reset()
-            {
-                //return Sequence to the start
-                lastCommandIndex = -1;
-                isActive = false;
-                isFinished = false;
-                isWaiting = false;
-
-                if (commands == null) return;
-
-                foreach (BasicCommand c in commands)
-                {
-                    c.Stop();
-                    c.isActive = false;
-                    c.isFinished = false;
-                }
-            }
-
-            public void SetFinished()
-            {
-                isActive = false;
-                isFinished = true;
-                isWaiting = false;
-
-                //set all commands as Finished and not Active
-                commands.ForEach(delegate(BasicCommand c) { c.isActive = false; c.isFinished = true; });
-            }
         }
 
         /// <summary>
@@ -473,7 +185,7 @@ namespace IRSequencer.Gui
             {
                 if (sq.commands == null) continue;
 
-                var affectedServos = new List <IRWrapper.IRAPI.IRServo> ();
+                var affectedServos = new List <IRWrapper.IServo> ();
                 sq.commands.FindAll (s => s.servo != null).ForEach ((BasicCommand c) => affectedServos.Add (c.servo));
 
                 if (affectedServos.Any ()) 
@@ -613,6 +325,51 @@ namespace IRSequencer.Gui
             }
         }
 
+        private void OnVesselChange(Vessel v)
+        {
+            sequences.Clear();
+            guiSequenceEditor = false;
+            availableServoCommands = null;
+            openSequence = null;
+
+            //find module SequencerStorage and force loading of sequences
+            var storage = v.FindPartModulesImplementing<SequencerStorage>();
+            if (storage == null)
+            {
+                Logger.Log("Could not find SequencerStorage module to load sequences from", Logger.Level.Debug);
+                return;
+            }
+            else
+            {
+                try
+                {
+                    if  (v == FlightGlobals.ActiveVessel && storage.Count > 0)
+                    {
+                        storage[0].LoadSequences();
+                    }
+                    else
+                    {
+                        Logger.Log("Could not find SequencerStorage module to load sequences from", Logger.Level.Debug);
+                        return;
+                    }
+                        
+                }
+                catch (Exception e)
+                {
+                    Logger.Log("[IRSequencer] Exception in OnVesselChange: " + e.Message);
+                }
+            }
+
+            Logger.Log("[IRSequencer] OnVesselChange finished, sequences count=" + sequences.Count);
+        }
+
+        private void OnVesselWasModified(Vessel v)
+        {
+            if (v == FlightGlobals.ActiveVessel)
+            {
+                OnVesselChange(v);
+            }
+        }
 
         private void Awake()
         {
@@ -627,6 +384,8 @@ namespace IRSequencer.Gui
             sequences = new List<Sequence>();
             sequences.Clear();
 
+            GameEvents.onVesselChange.Add(OnVesselChange);
+            GameEvents.onVesselWasModified.Add(OnVesselWasModified);
             GameEvents.onGUIApplicationLauncherReady.Add(OnAppReady);
             
             Logger.Log("[Sequencer] Awake successful", Logger.Level.Debug);
@@ -661,6 +420,9 @@ namespace IRSequencer.Gui
             GameEvents.onShowUI.Remove(OnShowUI);
             GameEvents.onHideUI.Remove(OnHideUI);
 
+            GameEvents.onVesselChange.Remove(OnVesselChange);
+            GameEvents.onVesselWasModified.Remove(OnVesselWasModified);
+            
             Sequencer.Instance.isReady = false;
             SaveConfigXml();
 
@@ -730,9 +492,6 @@ namespace IRSequencer.Gui
 
         private void SequencerControlWindow(int windowID)
         {
-            //requires ServoGroups to be parsed
-            if (!IRWrapper.APIReady)
-                return;
             GUI.color = opaqueColor;
 
             GUILayout.BeginVertical();
@@ -838,6 +597,7 @@ namespace IRSequencer.Gui
             }
             GUILayout.BeginHorizontal();
             GUI.color = solidColor;
+
             if(GUILayout.Button("Add new", buttonStyle, GUILayout.Height(22)))
             {
                 sequences.Add(new Sequence());
@@ -851,10 +611,6 @@ namespace IRSequencer.Gui
 
         private void SequencerEditorWindow(int windowID)
         {
-            //requires ServoGroups to be parsed
-            if (!IRWrapper.APIReady)
-                return;
-
             if (openSequence == null)
                 return;
 
@@ -877,11 +633,11 @@ namespace IRSequencer.Gui
             GUI.color = opaqueColor;
             GUILayout.EndHorizontal();
 
-            var allServos = new List<IRWrapper.IRAPI.IRServo>();
+            var allServos = new List<IRWrapper.IServo>();
 
             if (currentMode == 0) 
             {
-                foreach (IRWrapper.IRAPI.IRControlGroup g in IRWrapper.IRController.ServoGroups) 
+                foreach (IRWrapper.IControlGroup g in IRWrapper.IRController.ServoGroups) 
                 {
                     allServos.AddRange (g.Servos);
                 }
@@ -895,7 +651,7 @@ namespace IRSequencer.Gui
                 {
                     availableServoCommands.Clear ();
                     //rebuild the list of available commands
-                    foreach (IRWrapper.IRAPI.IRServo s in allServos) 
+                    foreach (IRWrapper.IServo s in allServos) 
                     {
                         var bc = new BasicCommand (s, s.Position, 1f);
                         availableServoCommands.Add (bc);
@@ -905,7 +661,7 @@ namespace IRSequencer.Gui
                 servoListScroll = GUILayout.BeginScrollView (servoListScroll, false, false, maxHeight);
                 for (int i = 0; i < IRWrapper.IRController.ServoGroups.Count; i++) 
                 {
-                    IRWrapper.IRAPI.IRControlGroup g = IRWrapper.IRController.ServoGroups [i];
+                    IRWrapper.IControlGroup g = IRWrapper.IRController.ServoGroups [i];
 
                     if (g.Servos.Any ()) 
                     {
@@ -932,17 +688,19 @@ namespace IRSequencer.Gui
                             GUILayout.BeginHorizontal (GUILayout.Height (5));
                             GUILayout.EndHorizontal ();
 
-                            foreach (IRWrapper.IRAPI.IRServo servo in g.Servos) 
+                            foreach (IRWrapper.IServo servo in g.Servos) 
                             {
                                 GUILayout.BeginHorizontal ();
-                                var avCommand = availableServoCommands.FirstOrDefault (t => t.servo == servo);
+                                GUI.color = solidColor;
+
+                                var avCommand = availableServoCommands.FirstOrDefault(t => t.servo.Equals(servo));
 
                                 if (avCommand == null) 
                                 {
                                     Logger.Log ("[Sequencer] Cannot find matching command for servo " + servo.Name, Logger.Level.Debug);
                                     return;
                                 }
-                                GUI.color = solidColor;
+                               
 
                                 if (GUILayout.Button ("Add", buttonStyle, GUILayout.Width (30), GUILayout.Height (22))) 
                                 {
@@ -951,7 +709,7 @@ namespace IRSequencer.Gui
                                     
                                     openSequence.commands.Add (new BasicCommand (avCommand));
                                 }
-
+                                
                                 GUILayout.Label (servo.Name, nameStyle, GUILayout.ExpandWidth (true), GUILayout.Height (22));
 
                                 Rect last = GUILayoutUtility.GetLastRect();
@@ -1270,6 +1028,23 @@ namespace IRSequencer.Gui
 
         private void OnGUI()
         {
+            //requires ServoGroups to be parsed
+            if (!IRWrapper.APIReady)
+                return;
+
+            /*if (IRWrapper.IRController.ServoGroups == null)
+                return;
+
+            if (IRWrapper.IRController.ServoGroups.Count == 0)
+                return;
+            */
+            var storage = FlightGlobals.ActiveVessel.FindPartModulesImplementing<SequencerStorage>();
+            if (GUIEnabled && (storage == null || storage.Count == 0) )
+            {
+                ScreenMessages.PostScreenMessage("Sequencer Storage module is required (add probe core).", 3, ScreenMessageStyle.UPPER_CENTER);
+                GUIEnabled = false;
+                return;
+            }
 
             if (SequencerWindowPos.x == 0 && SequencerWindowPos.y == 0)
             {
