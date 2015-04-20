@@ -328,6 +328,9 @@ namespace IRSequencer.Gui
         private void OnVesselChange(Vessel v)
         {
             sequences.Clear();
+            guiSequenceEditor = false;
+            availableServoCommands = null;
+            openSequence = null;
 
             //find module SequencerStorage and force loading of sequences
             var storage = v.FindPartModulesImplementing<SequencerStorage>();
@@ -340,8 +343,16 @@ namespace IRSequencer.Gui
             {
                 try
                 {
-                    if  (v == FlightGlobals.ActiveVessel)
-                        storage[0].LoadSequencesEvent();
+                    if  (v == FlightGlobals.ActiveVessel && storage.Count > 0)
+                    {
+                        storage[0].LoadSequences();
+                    }
+                    else
+                    {
+                        Logger.Log("Could not find SequencerStorage module to load sequences from", Logger.Level.Debug);
+                        return;
+                    }
+                        
                 }
                 catch (Exception e)
                 {
@@ -586,6 +597,7 @@ namespace IRSequencer.Gui
             }
             GUILayout.BeginHorizontal();
             GUI.color = solidColor;
+
             if(GUILayout.Button("Add new", buttonStyle, GUILayout.Height(22)))
             {
                 sequences.Add(new Sequence());
@@ -1020,12 +1032,20 @@ namespace IRSequencer.Gui
             if (!IRWrapper.APIReady)
                 return;
 
-            if (IRWrapper.IRController.ServoGroups == null)
+            /*if (IRWrapper.IRController.ServoGroups == null)
                 return;
 
             if (IRWrapper.IRController.ServoGroups.Count == 0)
                 return;
-            
+            */
+            var storage = FlightGlobals.ActiveVessel.FindPartModulesImplementing<SequencerStorage>();
+            if (GUIEnabled && (storage == null || storage.Count == 0) )
+            {
+                ScreenMessages.PostScreenMessage("Sequencer Storage module is required (add probe core).", 3, ScreenMessageStyle.UPPER_CENTER);
+                GUIEnabled = false;
+                return;
+            }
+
             if (SequencerWindowPos.x == 0 && SequencerWindowPos.y == 0)
             {
                 SequencerWindowPos = new Rect(Screen.width - 510, 70, 10, 10);

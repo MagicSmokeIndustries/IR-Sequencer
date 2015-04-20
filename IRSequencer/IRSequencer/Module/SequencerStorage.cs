@@ -11,37 +11,45 @@ namespace IRSequencer.Module
     {
         [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "serializedSequences")]
         public string serializedSequences = "";
-
+        private bool loadPending = false;
         private float lastSavedUT = 0f;
-
-        [KSPEvent(guiActive = true, guiActiveEditor = true, guiName = "Save Sequences")]
-        public void SaveSequencesEvent ()
+        
+        /*[KSPEvent(guiActive = true, guiActiveEditor = true, guiName = "Save Sequences")]
+        public void SaveSequencesEvent()
         {
+            SaveSequences();
+            Logger.Log("[Sequencer] Saving, serializedSequences=" + serializedSequences, Logger.Level.Debug);
+        }*/
+        
+        public void SaveSequences ()
+        {
+            //requires ServoGroups to be parsed
+            if (!IRWrapper.APIReady)
+                return;
+
             if (Sequencer.Instance)
             {
+                if (Sequencer.Instance.sequences == null)
+                    return;
+
                 var message = "";
                 foreach(Sequence s in Sequencer.Instance.sequences)
                 {
                     message += s.Serialize () + "$";
                 }
-
-                //ScreenMessages.PostScreenMessage (message);
-
                 serializedSequences = message;
-                //Logger.Log(string.Format("Successfully Saved {0} Sequences", Sequencer.Instance.sequences.Count), Logger.Level.Debug);
-                //ScreenMessages.PostScreenMessage(string.Format("Successfully Saved {0} Sequences", Sequencer.Instance.sequences.Count), 3, ScreenMessageStyle.UPPER_CENTER);
             }
-            else 
-            {
-                //ScreenMessages.PostScreenMessage("Sequencer is not Initialised", 3, ScreenMessageStyle.UPPER_CENTER);
-            }
-            
         }
 
-        [KSPEvent(guiActive = true, guiActiveEditor = true, guiName = "Load Sequences")]
-        public void LoadSequencesEvent ()
+        public void LoadSequences ()
         {
-
+            //requires ServoGroups to be parsed
+            if (!IRWrapper.APIReady)
+            {
+                //we tried loading, but the ServoController was not ready
+                loadPending = true;
+                return;
+            }
             if (Sequencer.Instance == null)
                 return;
 
@@ -62,8 +70,9 @@ namespace IRSequencer.Module
                     counter++;
                 }
             }
+
+            loadPending = false;
             Logger.Log(string.Format("Successfully Loaded {0} Sequences", counter), Logger.Level.Debug);
-            //ScreenMessages.PostScreenMessage(string.Format("Successfully Loaded {0} Sequences", counter), 3, ScreenMessageStyle.UPPER_CENTER);
         }
 
         public bool TryParseSequence(string s, out Sequence seq)
@@ -223,12 +232,21 @@ namespace IRSequencer.Module
                 return;
 
             //only autosave every second
-            if (Time.time < lastSavedUT + 1)
+            if (Time.time < lastSavedUT + 0.2f)
                 return;
 
-            SaveSequencesEvent ();
+            if (loadPending)
+            {
+                LoadSequences();
+            }
+            else
+            {
+                SaveSequences();
 
-            lastSavedUT = Time.time;
+                lastSavedUT = Time.time;
+            }
+
+            
         }
 
         //returns basic information on kOSProcessor module in Editor
@@ -249,29 +267,10 @@ namespace IRSequencer.Module
 
             //only load sequences for active craft
             if (vessel == FlightGlobals.ActiveVessel)            
-                LoadSequencesEvent();
+                LoadSequences();
 
             Logger.Log(string.Format("OnStart: {0}", state), Logger.Level.Debug);
         }
-
-        public override void OnSave(ConfigNode node)
-        {
-            try
-            {
-                //if (vessel == FlightGlobals.ActiveVessel)
-                //    SaveSequencesEvent();
-
-                base.OnSave(node);
-
-            }
-            catch (Exception ex) //Intentional Pokemon, if exceptions get out of here it can kill the craft
-            {
-                Logger.Log("ONSAVE Exception: " + ex.TargetSite);
-            }
-
-            Logger.Log("[SeqeuncerStorage] OnSave finished.");
-        }
-
     }
 }
 

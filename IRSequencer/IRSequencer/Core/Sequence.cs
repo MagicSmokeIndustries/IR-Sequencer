@@ -190,19 +190,19 @@ namespace IRSequencer.Core
 
         public string Serialize()
         {
-            var serilizedSequence = name + "|" + isLooped + "<";
+            var serializedSequence = name.Replace('<',' ').Replace('>',' ').Replace('|',' ') + "|" + isLooped + "<";
 
             if (commands == null)
-                return serilizedSequence + ">";
+                return serializedSequence + ">";
 
             foreach (BasicCommand bc in commands)
             {
-                serilizedSequence += ":" + bc.Serialize ();
+                serializedSequence += ":" + bc.Serialize ();
             }
 
-            serilizedSequence += ">";
+            serializedSequence += ">";
 
-            return serilizedSequence;
+            return serializedSequence;
         }
     }
 
