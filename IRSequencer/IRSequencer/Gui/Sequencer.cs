@@ -481,9 +481,6 @@ namespace IRSequencer.Gui
 
         private void SequencerControlWindow(int windowID)
         {
-            //requires ServoGroups to be parsed
-            if (!IRWrapper.APIReady)
-                return;
             GUI.color = opaqueColor;
 
             GUILayout.BeginVertical();
@@ -602,10 +599,6 @@ namespace IRSequencer.Gui
 
         private void SequencerEditorWindow(int windowID)
         {
-            //requires ServoGroups to be parsed
-            if (!IRWrapper.APIReady)
-                return;
-
             if (openSequence == null)
                 return;
 
@@ -1023,7 +1016,16 @@ namespace IRSequencer.Gui
 
         private void OnGUI()
         {
+            //requires ServoGroups to be parsed
+            if (!IRWrapper.APIReady)
+                return;
 
+            if (IRWrapper.IRController.ServoGroups == null)
+                return;
+
+            if (IRWrapper.IRController.ServoGroups.Count == 0)
+                return;
+            
             if (SequencerWindowPos.x == 0 && SequencerWindowPos.y == 0)
             {
                 SequencerWindowPos = new Rect(Screen.width - 510, 70, 10, 10);

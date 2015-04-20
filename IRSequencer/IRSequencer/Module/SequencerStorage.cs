@@ -12,6 +12,8 @@ namespace IRSequencer.Module
         [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "serializedSequences")]
         public string serializedSequences = "";
 
+        private float lastSavedUT = 0f;
+
         [KSPEvent(guiActive = true, guiActiveEditor = true, guiName = "Save Sequences")]
         public void SaveSequencesEvent ()
         {
@@ -26,7 +28,7 @@ namespace IRSequencer.Module
                 //ScreenMessages.PostScreenMessage (message);
 
                 serializedSequences = message;
-                Logger.Log(string.Format("Successfully Saved {0} Sequences", Sequencer.Instance.sequences.Count), Logger.Level.Debug);
+                //Logger.Log(string.Format("Successfully Saved {0} Sequences", Sequencer.Instance.sequences.Count), Logger.Level.Debug);
                 //ScreenMessages.PostScreenMessage(string.Format("Successfully Saved {0} Sequences", Sequencer.Instance.sequences.Count), 3, ScreenMessageStyle.UPPER_CENTER);
             }
             else 
@@ -209,7 +211,7 @@ namespace IRSequencer.Module
         {
         }
 
-        /*private void FixedUpdate()
+        private void FixedUpdate()
         {
             if (Sequencer.Instance == null)
                 return;
@@ -217,8 +219,17 @@ namespace IRSequencer.Module
             if (Sequencer.Instance.sequences == null)
                 return;
 
+            if (vessel != FlightGlobals.ActiveVessel)
+                return;
 
-        }*/
+            //only autosave every second
+            if (Time.time < lastSavedUT + 1)
+                return;
+
+            SaveSequencesEvent ();
+
+            lastSavedUT = Time.time;
+        }
 
         //returns basic information on kOSProcessor module in Editor
         public override string GetInfo()
