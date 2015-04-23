@@ -52,6 +52,9 @@
     <Compile Include="Logger.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Utility\TextureLoader.cs" />
+    <Compile Include="Module\SequencerStorage.cs" />
+    <Compile Include="Core\Sequence.cs" />
+    <Compile Include="Core\BasicCommand.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
@@ -65,4 +68,8 @@
   <Target Name="AfterBuild">
   </Target>
   -->
+  <ItemGroup>
+    <Folder Include="Module\" />
+    <Folder Include="Core\" />
+  </ItemGroup>
 </Project>

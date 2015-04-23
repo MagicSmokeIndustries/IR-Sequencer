@@ -180,6 +180,10 @@ namespace IRSequencer.API
             private IList<IControlGroup> ExtractServoGroups(object servoGroups)
             {
                 var listToReturn = new List<IControlGroup>();
+
+                if (servoGroups == null)
+                    return listToReturn;
+
                 try
                 {
                     //iterate each "value" in the dictionary
@@ -190,7 +194,7 @@ namespace IRSequencer.API
                 }
                 catch (Exception ex)
                 {
-                    LogFormatted("Arrggg: {0}", ex.Message);
+                    LogFormatted("Cannot list ServoGroups: {0}", ex.Message);
                 }
                 return listToReturn;
             }
@@ -315,6 +319,10 @@ namespace IRSequencer.API
             private IList<IServo> ExtractServos(object actualServos)
             {
                 var listToReturn = new List<IServo>();
+                
+                if (actualServos == null)
+                    return listToReturn;
+
                 try
                 {
                     //iterate each "value" in the dictionary
@@ -325,7 +333,7 @@ namespace IRSequencer.API
                 }
                 catch (Exception ex)
                 {
-                    LogFormatted("Arrggg: {0}", ex.Message);
+                    LogFormatted("Error extracting from actualServos: {0}", ex.Message);
                 }
                 return listToReturn;
             }
@@ -357,6 +365,8 @@ namespace IRSequencer.API
             private PropertyInfo positionProperty;
             private PropertyInfo minConfigPositionProperty;
 
+            private PropertyInfo UIDProperty;
+
             private MethodInfo moveRightMethod;
             private MethodInfo moveLeftMethod;
             private MethodInfo moveCenterMethod;
@@ -377,6 +387,7 @@ namespace IRSequencer.API
             {
                 nameProperty = IRServoPartType.GetProperty("Name");
                 highlightProperty = IRServoPartType.GetProperty("Highlight");
+                UIDProperty = IRServoPartType.GetProperty ("UID");
 
                 var mechanismProperty = IRServoType.GetProperty("Mechanism");
                 actualServoMechanism = mechanismProperty.GetValue(actualServo, null);
@@ -411,6 +422,10 @@ namespace IRSequencer.API
 
             private readonly object actualServo;
 
+            public uint UID
+            {
+                get { return (uint)UIDProperty.GetValue(actualServo, null); }
+            }
 
             public string Name
             {
@@ -533,8 +548,8 @@ namespace IRSequencer.API
 
             public bool Equals(IServo other)
             {
-                var controlGroup = other as IRServo;
-                return controlGroup != null && Equals(controlGroup);
+                var servo = other as IRServo;
+                return servo != null && Equals(servo);
             }
 
             public override bool Equals(object o)
@@ -604,6 +619,8 @@ namespace IRSequencer.API
 
         public interface IServo : IEquatable<IServo>
         {
+            uint UID { get; }
+
             string Name { get; set; }
 
             bool Highlight { set; }
