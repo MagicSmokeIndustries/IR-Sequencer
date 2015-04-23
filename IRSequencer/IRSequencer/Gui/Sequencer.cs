@@ -7,6 +7,8 @@ using UnityEngine;
 using KSP.IO;
 using IRSequencer.API;
 using IRSequencer.Utility;
+using IRSequencer.Core;
+using IRSequencer.Module;
 
 namespace IRSequencer.Gui
 {
@@ -35,11 +37,21 @@ namespace IRSequencer.Gui
         private float tooltipTime;
         private const float TOOLTIP_MAX_TIME = 8f;
         private const float TOOLTIP_DELAY = 1.5f;
+        private static GUIStyle tooltipStyle;
+        private static GUIStyle buttonStyle;
+        private static GUIStyle nameStyle;
+        private static GUIStyle dotStyle;
+        private static GUIStyle playheadStyle;
+        private static GUIStyle textFieldStyle;
 
-        private float currentSpeedMultiplier = 1.0f;
+        private static Color solidColor;
+        private static Color opaqueColor;
+
         private float currentDelay = 1.0f;
-        private float currentPosition = 0f;
-
+        private int currentMode = 0;
+        private string currentGotoIndexString = "1";
+        private int currentGotoIndex = 0;
+        private int currentGotoCounter = -1;
 
         protected static Rect SequencerWindowPos;
         protected static Rect SequencerEditorWindowPos;
@@ -47,6 +59,7 @@ namespace IRSequencer.Gui
         protected static int SequencerEditorWindowID;
 
         protected static Vector2 servoListScroll;
+        protected static Vector2 actionListScroll;
         protected static Vector2 commandListScroll;
 
         protected static Sequencer SequencerInstance;
@@ -58,10 +71,11 @@ namespace IRSequencer.Gui
             get { return SequencerInstance; }
         }
 
-        private List<Sequence> sequences;
+        internal List<Sequence> sequences;
 
-        private Sequence openSequence;
-        private IRWrapper.IRAPI.IRServo activeServo;
+        internal Sequence openSequence;
+
+        private List<BasicCommand> availableServoCommands;
 
         static Sequencer()
         {
@@ -70,213 +84,65 @@ namespace IRSequencer.Gui
             SequencerEditorWindowID = SequencerWindowID + 1;
         }
 
-        public class BasicCommand
-        {
-            internal IRWrapper.IRAPI.IRServo servo;
-            public float timeStarted;
-            public bool wait;
-            public float waitTime=0f;
-            public float position;
-            public float speedMultiplier;
-            public bool isActive = false;
-            public bool isFinished = false;
-
-            public BasicCommand(IRWrapper.IRAPI.IRServo s, float p, float sp)
-            {
-                servo = s;
-                position = p;
-                speedMultiplier = sp;
-                wait = false;
-            }
-
-            public BasicCommand(bool w)
-            {
-                servo = null;
-                position = 0;
-                speedMultiplier = 0;
-                wait = w;
-            }
-
-            public BasicCommand(bool w, float t) : this(w)
-            {
-                waitTime = t;
-            }
-
-            public void Execute()
-            {
-                isActive = true;
-                timeStarted = UnityEngine.Time.time;
-
-                if (wait)
-                {
-                    //do nothing, we should not get here ever
-                    //Logger.Log("[Sequencer] Error, should not execute wait command", Logger.Level.Debug);
-                }
-                else
-                {
-                    Logger.Log("[Sequencer] Executing command, servoName= " + servo.Name + ", pos=" + position, Logger.Level.Debug);
-                    servo.MoveTo(position, speedMultiplier);
-                }
-            }
-
-            public void Stop()
-            {
-                if (wait)
-                    return;
-                else if (servo != null)
-                {
-                    servo.Stop();
-                }
-
-                isActive = false;
-            }
-        }
-
-        public class Sequence
-        {
-            internal List<BasicCommand> commands;
-            public bool isLooped = false;
-            public int lastCommandIndex = -1;
-            public bool isActive = false;
-            public bool isFinished = false;
-            public bool isWaiting = false;
-            public string name = "";
-
-            public Sequence ()
-            {
-                commands = new List<BasicCommand>();
-                name = "New Sequence";
-            }
-
-            public Sequence (BasicCommand b) : this()
-            {
-                commands.Add(b);
-            }
-
-            public Sequence (Sequence baseSequence) :this()
-            {
-                commands.AddRange(baseSequence.commands);
-                name = "Copy of " + baseSequence.name;
-            }
-
-            public void Resume(int commandIndex)
-            {
-                Logger.Log("[Sequencer] Sequence resumed from index " + commandIndex, Logger.Level.Debug);
-
-                if (commands == null) return;
-
-                isActive = true;
-
-                //find first unfinished command
-                lastCommandIndex = commandIndex;
-                if (lastCommandIndex == -1)
-                    return;
-
-                //now we can start/continue execution
-                //we execute commands until first wait command
-                var nextWaitCommandIndex = commands.FindIndex(lastCommandIndex, s => s.wait == true);
-                if (nextWaitCommandIndex == -1)
-                {
-                    //there are no Waits left, execute all the rest;
-                    nextWaitCommandIndex = commands.Count;
-                }
-
-                Logger.Log("[Sequencer] nextWaitCommandIndex = " + nextWaitCommandIndex, Logger.Level.Debug);
-
-                for (int i = lastCommandIndex; i < nextWaitCommandIndex; i++)
-                {
-                    commands[i].Execute();
-                }
-
-                lastCommandIndex = nextWaitCommandIndex;
-
-                if (lastCommandIndex < commands.Count)
-                {
-                    //need to put timestamp on that wait command
-                    commands[lastCommandIndex].Execute();
-                    isWaiting = true;
-                    Logger.Log("[Sequencer] Sequence is waiting, lastCommandIndex = " + lastCommandIndex, Logger.Level.Debug);
-                }
-
-                Logger.Log("[Sequencer] Sequence Resume finished, lastCommandIndex = " + lastCommandIndex, Logger.Level.Debug);
-                //else we are either finished, or most likely waiting for commands to finish.
-            }
-
-            public void Start()
-            {
-                Logger.Log("[Sequencer] Sequence started", Logger.Level.Debug);
-
-                if (commands == null) return;
-
-                isActive = true;
-
-                //find first unfinished command
-                lastCommandIndex = commands.IndexOf(commands.Find(s => s.isFinished == false));
-                Logger.Log("[Sequencer] First unfinished Index = " + lastCommandIndex, Logger.Level.Debug);
-                if (lastCommandIndex == -1)
-                    return;
-
-                //now we can start/continue execution
-                //we execute commands until first wait command
-
-                Resume(lastCommandIndex);
-
-                Logger.Log("[Sequencer] Sequence Start finished, lastCommandIndex = " + lastCommandIndex, Logger.Level.Debug);
-                //else we are either finished, or most likely waiting for commands to finish.
-            }
-            public void Pause()
-            {
-                if (commands == null) return;
-
-                // should find last finished command and reset sequence index to it
-                lastCommandIndex = commands.IndexOf(commands.FindLast(s => s.isFinished));
-
-                //now we need to stop all the commands with index > lastCommandIndex
-                for (int i = lastCommandIndex+1; i < commands.Count; i++)
-                {
-                    commands[i].Stop();
-                }
-
-                isActive = false;
-                isWaiting = false;
-
-                Logger.Log("[Sequencer] Sequence Paused, lastCommandIndex = " + lastCommandIndex, Logger.Level.Debug);
-            }
-
-            public void Reset()
-            {
-                //return Sequence to the start
-                lastCommandIndex = -1;
-                isActive = false;
-                isFinished = false;
-                isWaiting = false;
-
-                if (commands == null) return;
-
-                foreach (BasicCommand c in commands)
-                {
-                    c.Stop();
-                    c.isActive = false;
-                    c.isFinished = false;
-                }
-            }
-
-            public void SetFinished()
-            {
-                isActive = false;
-                isFinished = true;
-                isWaiting = false;
-            }
-        }
-
         /// <summary>
         ///     Load the textures from files to memory
+        ///     Initialise Styles
         /// </summary>
-        private static void InitTextures()
+        private static void InitGUI()
         {
             if (!GUISetupDone)
             {
                 TextureLoader.InitTextures();
+
+                tooltipStyle = new GUIStyle
+                {
+                    fontSize = 12,
+                    fontStyle = FontStyle.Bold,
+                    normal =
+                    {
+                        textColor = new Color32(207, 207, 207, 255),
+                        background = TextureLoader.BgIcon
+                    },
+                    stretchHeight = true,
+                    border = new RectOffset(3, 3, 3, 3),
+                    padding = new RectOffset(4, 4, 6, 4),
+                    alignment = TextAnchor.MiddleLeft
+                };
+
+                buttonStyle = new GUIStyle(GUI.skin.button);
+                buttonStyle.padding =  new RectOffset(2, 2, 2, 2);
+                buttonStyle.alignment = TextAnchor.MiddleCenter;
+
+                nameStyle = new GUIStyle(GUI.skin.label)
+                {
+                    alignment = TextAnchor.MiddleLeft,
+                    wordWrap = true,
+                    clipping = TextClipping.Overflow
+                };
+
+                playheadStyle = new GUIStyle()
+                {
+                    padding = new RectOffset(0, 0, 0, 0),
+                    border = new RectOffset(0, 0, 0, 0),
+                    margin = new RectOffset(0, 0, -3, -3),
+                    normal =
+                    {
+                        background = TextureLoader.PlayheadBG
+                    },
+                };
+
+                dotStyle = new GUIStyle(GUI.skin.label)
+                {
+                    richText = true,
+                    alignment = TextAnchor.MiddleCenter
+                };
+
+                textFieldStyle = new GUIStyle(GUI.skin.textField);
+
+                solidColor = new Color (1, 1, 1, 1);
+                opaqueColor = new Color (1, 1, 1, 0.7f);
+
+                GUISetupDone = true;
             }
         }
 
@@ -287,7 +153,7 @@ namespace IRSequencer.Gui
                 try
                 {
                     var texture = new Texture2D(32, 32, TextureFormat.RGBA32, false);
-                    TextureLoader.LoadImageFromFile(texture, "presetmode.png");
+                    TextureLoader.LoadImageFromFile(texture, "icon_seq_button.png");
                     
                     appLauncherButton = ApplicationLauncher.Instance.AddModApplication(delegate { GUIEnabled = true; },
                         delegate { GUIEnabled = false; }, null, null, null, null,
@@ -308,15 +174,28 @@ namespace IRSequencer.Gui
             if (!isEnabled || sequences == null)
                 return;
 
-            var activeSequences = sequences.FindAll(s => s.isActive == true);
+            var activeSequences = sequences.FindAll(s => s.isActive);
             if (activeSequences.Count == 0) 
+            {
+                //unlock all sequences
+                sequences.ForEach (((Sequence s) => s.isLocked = false));
                 return;
-
+            }
             foreach (Sequence sq in activeSequences)
             {
                 if (sq.commands == null) continue;
 
-                var activeCommands = sq.commands.FindAll(s => s.isActive == true);
+                var affectedServos = new List <IRWrapper.IServo> ();
+                sq.commands.FindAll (s => s.servo != null).ForEach ((BasicCommand c) => affectedServos.Add (c.servo));
+
+                if (affectedServos.Any ()) 
+                {
+                    sequences.FindAll (s => s.commands.Any (c => affectedServos.Contains (c.servo))).ForEach ((Sequence seq) => seq.isLocked = true);
+                    //exclude current sequence from Locked List
+                    sq.isLocked = false;
+                }
+
+                var activeCommands = sq.commands.FindAll(s => s.isActive);
                 var activeCount = activeCommands.Count;
                 
                 foreach (BasicCommand bc in activeCommands)
@@ -345,49 +224,152 @@ namespace IRSequencer.Gui
 
                 //need to calculate if there are any active waiting commands
                 var activeWaitCount = activeCommands.Count(t => t.wait && t.isActive);
-                if (activeWaitCount == 0) sq.isWaiting = false;
+                //if (activeWaitCount == 0) sq.isWaiting = false;
 
-                if (sq.isWaiting)
+                if (activeCount <= 0)
                 {
-                    if (sq.commands[sq.lastCommandIndex].wait && sq.commands[sq.lastCommandIndex].waitTime == 0f)
-                        activeCount--;
-
-                    if (activeCount <= 0)
+                    //there are no active commands being executed, including Delays
+                    if (sq.lastCommandIndex+1 < sq.commands.Count)
                     {
-                        //sequence was waiting for all active commands to finish to proceed further
-                        // we should have only wait command still active
-                        //set wait command to finished
-                        Logger.Log("[Sequencer] Waiting finished, resuming sequence: " + sq.name, Logger.Level.Debug);
-                        sq.commands[sq.lastCommandIndex].isFinished = true;
-                        sq.commands[sq.lastCommandIndex].isActive = false;
+                        //there are still commands left to execute
+                        //need to start from first unfinished command
+                        Logger.Log("[Sequencer] Restarting sequence " + sq.name + " from first unfinished command", Logger.Level.Debug);
                         sq.isWaiting = false;
                         sq.Start();
                     }
-                    
-                }
-                else
-                {
-                    if (activeCount <= 0)
-                    {
-                        Logger.Log("[Sequencer] Finished sequence " + sq.name, Logger.Level.Debug);
+                    else 
+                    { 
+                        //there are no more commands in the sequence left to execute
                         if (sq.isLooped)
                         {
+                            Logger.Log("[Sequencer] Looping sequence " + sq.name, Logger.Level.Debug);
                             sq.Reset();
                             sq.Start();
                         }
                         else
+                        {
+                            Logger.Log("[Sequencer] Finished sequence " + sq.name, Logger.Level.Debug);
                             sq.SetFinished();
+                            //move lastCommandIndex past the last command so it does not get highlighted
+                            sq.lastCommandIndex++;
+                            //unlock all other sequences that may have been locked by this sequence
+                            if (affectedServos.Any())
+                            {
+                                sequences.FindAll(s => s.commands.Any(c => affectedServos.Contains(c.servo))).ForEach((Sequence seq) => seq.isLocked = false);
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    //there are still active commands
+                    if (activeWaitCount > 0)
+                    {
+                        //we have some waits in the queue
+                        if (sq.commands[sq.lastCommandIndex].wait && sq.commands[sq.lastCommandIndex].waitTime == 0f)
+                        {
+                            //the last executed command is to wait for all other commands to finish
+                            //if it is the only active command we are waiting for - mark it as Finished and proceeed.
+                            if (activeWaitCount == 1 && activeCount == 1)
+                            {
+                                sq.commands[sq.lastCommandIndex].isFinished = true;
+                                sq.commands[sq.lastCommandIndex].isActive = false;
+                                sq.isWaiting = false;
+
+                                if (sq.commands[sq.lastCommandIndex].gotoIndex != -1)
+                                {
+                                    //apart from pure wait this is a Goto command
+
+                                    if (sq.commands[sq.lastCommandIndex].gotoCounter > 0 || sq.commands[sq.lastCommandIndex].gotoCounter == -1)
+                                    {
+                                        //we need to set all commands before it in the sequence as not Finished and Resume from gotoIndex
+                                        if (sq.commands[sq.lastCommandIndex].gotoCounter > 0) sq.commands[sq.lastCommandIndex].gotoCounter--;
+
+                                        sq.commands.GetRange(sq.commands[sq.lastCommandIndex].gotoIndex, sq.commands.Count - sq.commands[sq.lastCommandIndex].gotoIndex)
+                                                   .ForEach(delegate(BasicCommand c) { c.isFinished = false; c.isActive = false; });
+                                        sq.Resume(sq.commands[sq.lastCommandIndex].gotoIndex);
+                                    }
+                                }
+                                else
+                                {
+                                    Logger.Log("[Sequencer] Restarting sequence " + sq.name + " after Wait command", Logger.Level.Debug);
+                                    sq.Start();
+                                }
+                            }
+                            else
+                            {
+                                //there are some Delays among other commands in the active queue, we should wait for them to finish too
+                                //doing nothing here
+                            }
+                        }
+                        else
+                        {
+                            //last command was not a wait, but there are delays in the queue
+                            //just wait for them to complete, do nothing
+                        }
                     }
                     else
                     {
-                        //sequence was delayed  and should continue from the place of last delay 
-                        //problem is that we should not seek first unfinished but resume execution from lastCommandIndex
-                        sq.Resume(sq.lastCommandIndex+1);
+                        //there are no wait commands in the queue, we can restart the queue from lastCommandIndex+1
+                        if (sq.lastCommandIndex + 1 < sq.commands.Count)
+                        {
+                            sq.isWaiting = false;
+                            sq.Resume(sq.lastCommandIndex + 1);
+                        }
+                        else
+                        {
+                            //do nothing, just wait for active commands to finish
+                        }
                     }
                 }
             }
         }
 
+        private void OnVesselChange(Vessel v)
+        {
+            sequences.Clear();
+            guiSequenceEditor = false;
+            availableServoCommands = null;
+            openSequence = null;
+
+            //find module SequencerStorage and force loading of sequences
+            var storage = v.FindPartModulesImplementing<SequencerStorage>();
+            if (storage == null)
+            {
+                Logger.Log("Could not find SequencerStorage module to load sequences from", Logger.Level.Debug);
+                return;
+            }
+            else
+            {
+                try
+                {
+                    if  (v == FlightGlobals.ActiveVessel && storage.Count > 0)
+                    {
+                        storage[0].LoadSequences();
+                    }
+                    else
+                    {
+                        Logger.Log("Could not find SequencerStorage module to load sequences from", Logger.Level.Debug);
+                        return;
+                    }
+                        
+                }
+                catch (Exception e)
+                {
+                    Logger.Log("[IRSequencer] Exception in OnVesselChange: " + e.Message);
+                }
+            }
+
+            Logger.Log("[IRSequencer] OnVesselChange finished, sequences count=" + sequences.Count);
+        }
+
+        private void OnVesselWasModified(Vessel v)
+        {
+            if (v == FlightGlobals.ActiveVessel)
+            {
+                OnVesselChange(v);
+            }
+        }
 
         private void Awake()
         {
@@ -402,8 +384,8 @@ namespace IRSequencer.Gui
             sequences = new List<Sequence>();
             sequences.Clear();
 
-            InitTextures();
-
+            GameEvents.onVesselChange.Add(OnVesselChange);
+            GameEvents.onVesselWasModified.Add(OnVesselWasModified);
             GameEvents.onGUIApplicationLauncherReady.Add(OnAppReady);
             
             Logger.Log("[Sequencer] Awake successful", Logger.Level.Debug);
@@ -438,6 +420,9 @@ namespace IRSequencer.Gui
             GameEvents.onShowUI.Remove(OnShowUI);
             GameEvents.onHideUI.Remove(OnHideUI);
 
+            GameEvents.onVesselChange.Remove(OnVesselChange);
+            GameEvents.onVesselWasModified.Remove(OnVesselWasModified);
+            
             Sequencer.Instance.isReady = false;
             SaveConfigXml();
 
@@ -455,6 +440,8 @@ namespace IRSequencer.Gui
             {
                 Logger.Log("[Sequencer] Failed unregistering AppLauncher handlers," + e.Message);
             }
+
+            //consider unloading textures too in TextureLoader
 
             Logger.Log("[Sequencer] Destroy successful", Logger.Level.Debug);
         }
@@ -478,21 +465,7 @@ namespace IRSequencer.Gui
             Vector2 pos = Event.current.mousePosition;
             if (tooltipText != "" && tooltipTime < TOOLTIP_MAX_TIME)
             {
-                var tooltipStyle = new GUIStyle
-                {
-                    fontSize = 12,
-                    fontStyle = FontStyle.Bold,
-                    normal =
-                    {
-                        textColor = new Color32(207, 207, 207, 255),
-                        background = TextureLoader.EditorBackgroundText
-                    },
-                    stretchHeight = true,
-                    border = new RectOffset(3, 3, 3, 3),
-                    padding = new RectOffset(4, 4, 6, 4),
-                    alignment = TextAnchor.MiddleLeft
-                };
-
+                
                 var tooltip = new GUIContent(tooltipText);
                 Vector2 size = tooltipStyle.CalcSize(tooltip);
 
@@ -519,73 +492,117 @@ namespace IRSequencer.Gui
 
         private void SequencerControlWindow(int windowID)
         {
-            //requires ServoGroups to be parsed
-            if (!IRWrapper.APIReady)
-                return;
-            
-            var buttonStyle = new GUIStyle(GUI.skin.button);
-            var padding2px = new RectOffset(2, 2, 2, 2);
-
-            buttonStyle.padding = padding2px;
-            buttonStyle.alignment = TextAnchor.MiddleCenter;
+            GUI.color = opaqueColor;
 
             GUILayout.BeginVertical();
 
-            GUILayout.BeginHorizontal();
+            /*GUILayout.BeginHorizontal();
 
             GUILayout.Label("Sequence Name", GUILayout.ExpandWidth(true), GUILayout.Height(22));
-            GUILayout.Label("Controls", GUILayout.Width(250), GUILayout.Height(22));
+            GUILayout.Label("Controls", GUILayout.Width(150), GUILayout.Height(22));
 
             GUILayout.EndHorizontal();
-
+            */
             for (int i = 0; i < sequences.Count; i++)
             {
                 //list through all sequences
                 var sq = sequences[i];
                 GUILayout.BeginHorizontal();
-                sq.name = GUILayout.TextField(sq.name, GUILayout.ExpandWidth(true), GUILayout.Height(22));
 
-                if (GUILayout.Button("Run", buttonStyle, GUILayout.Width(40), GUILayout.Height(22)))
+                string sequenceStatus = (sq.isActive) ? "<color=lime>■</color>" : sq.isFinished ? "<color=green>■</color>" : "<color=silver>■</color>";
+                if (sq.IsPaused)
+                    sequenceStatus = "<color=yellow>■</color>";
+
+                if (sq.isLocked)
+                    sequenceStatus = "<color=red>■</color>";
+                
+                GUI.color = solidColor;
+
+                GUILayout.Label(sequenceStatus, dotStyle, GUILayout.Width(20), GUILayout.Height(22));
+
+                sq.name = GUILayout.TextField(sq.name, textFieldStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
+
+                bool playToggle = GUILayout.Toggle(sq.isActive, 
+                    sq.isActive ? new GUIContent(TextureLoader.PauseIcon, "Pause") : new GUIContent(TextureLoader.PlayIcon, "Play"), 
+                    buttonStyle, GUILayout.Width(22), GUILayout.Height(22));
+                SetTooltipText ();
+
+                if(playToggle && !sq.isLocked)
                 {
-                    sq.Start();
+                    if (playToggle != sq.isActive)
+                    {
+                        sq.Start();
+                    }
+                }
+                else if (!sq.isLocked)
+                {
+                    if (playToggle != sq.isActive && !sq.isFinished)
+                    {
+                        sq.Pause();
+                    }
+                }
+                
+                if (GUILayout.Button(new GUIContent(TextureLoader.StopIcon, "Stop"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
+                {
+                    if (!sq.isLocked)
+                        sq.Reset();
+                }
+                SetTooltipText ();
+
+                sq.isLooped = GUILayout.Toggle(sq.isLooped, 
+                                               new GUIContent(sq.isLooped ? TextureLoader.LoopingIcon : TextureLoader.LoopIcon, "Loop"), 
+                                               buttonStyle, GUILayout.Width(22), GUILayout.Height(22));
+
+                GUILayout.Space(4);
+
+                bool sequenceEditToggle = (openSequence == sq) && guiSequenceEditor;
+                
+                bool toggleVal = GUILayout.Toggle(sequenceEditToggle, new GUIContent(TextureLoader.EditIcon, "Edit"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22));
+                SetTooltipText();
+
+                if (sequenceEditToggle != toggleVal)
+                {
+                    if (guiSequenceEditor && Equals(openSequence, sq))
+                        guiSequenceEditor = !guiSequenceEditor;
+                    else
+                    {
+                        openSequence = sq;
+                        if (!guiSequenceEditor)
+                            guiSequenceEditor = true;
+                    }
                 }
 
-                if (GUILayout.Button("Pause", buttonStyle, GUILayout.Width(40), GUILayout.Height(22)))
-                {
-                    sq.Pause();
-                }
-
-                if (GUILayout.Button("Reset", buttonStyle, GUILayout.Width(40), GUILayout.Height(22)))
-                {
-                    sq.Reset();
-                }
-
-                if (GUILayout.Button("Edit", buttonStyle, GUILayout.Width(40), GUILayout.Height(22)))
-                {
-                    openSequence = sq;
-                    guiSequenceEditor = !guiSequenceEditor;
-                }
-
-                if (GUILayout.Button("Clone", buttonStyle, GUILayout.Width(40), GUILayout.Height(22)))
+                if (GUILayout.Button(new GUIContent(TextureLoader.CloneIcon, "Clone"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
                 {
                     sequences.Add(new Sequence(sq));
                 }
+                SetTooltipText ();
 
-                if (GUILayout.Button("Del", buttonStyle, GUILayout.Width(40), GUILayout.Height(22)))
+                GUILayout.Space(4);
+                
+                if (GUILayout.Button(new GUIContent(TextureLoader.TrashIcon, "Delete"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
                 {
                     sq.Pause();
                     sq.Reset();
+                    if (openSequence == sq)
+                    {
+                        guiSequenceEditor = false;
+                        openSequence = null;
+                    }
                     sequences.RemoveAt(i);
-                    return;
                 }
-
+                SetTooltipText ();
+                GUI.color = opaqueColor;
                 GUILayout.EndHorizontal();
             }
             GUILayout.BeginHorizontal();
+            GUI.color = solidColor;
+
             if(GUILayout.Button("Add new", buttonStyle, GUILayout.Height(22)))
             {
                 sequences.Add(new Sequence());
             }
+            GUI.color = opaqueColor;
             GUILayout.EndHorizontal();
             GUILayout.EndVertical();
 
@@ -594,181 +611,263 @@ namespace IRSequencer.Gui
 
         private void SequencerEditorWindow(int windowID)
         {
-            //requires ServoGroups to be parsed
-            if (!IRWrapper.APIReady)
-                return;
-
             if (openSequence == null)
                 return;
 
-            Vector2 mousePos = Event.current.mousePosition;
+            GUI.color = opaqueColor;
 
-            var buttonStyle = new GUIStyle(GUI.skin.button);
-            var padding2px = new RectOffset(2, 2, 2, 2);
-
-            buttonStyle.padding = padding2px;
-            buttonStyle.alignment = TextAnchor.MiddleCenter;
+            string tmpString;
+            float tmpValue;
 
             GUILayout.BeginVertical();
             GUILayout.BeginHorizontal();
             GUILayoutOption maxHeight = GUILayout.MaxHeight(Screen.height * 0.5f);
 
-            servoListScroll = GUILayout.BeginScrollView(servoListScroll, false, false, maxHeight);
-            GUILayout.BeginVertical(GUILayout.Width(200));
-            
-            List<IRWrapper.IRAPI.IRServo> allServos = new List<IRWrapper.IRAPI.IRServo>();
+            GUILayout.BeginVertical(GUILayout.Width(270));
 
-            foreach(IRWrapper.IRAPI.IRControlGroup g in IRWrapper.IRController.ServoGroups)
+            //draw buttons here
+            GUILayout.BeginHorizontal();
+            var modes = new String[] {"Servos", "ActionGroups"};
+            GUI.color = solidColor;
+            currentMode = GUILayout.Toolbar (currentMode, modes, buttonStyle,  GUILayout.Height(22));
+            GUI.color = opaqueColor;
+            GUILayout.EndHorizontal();
+
+            var allServos = new List<IRWrapper.IServo>();
+
+            if (currentMode == 0) 
             {
-                allServos.AddRange(g.Servos);
-            }
-
-            if (activeServo == null)
-            {
-                activeServo = allServos[0];
-                currentPosition = activeServo.Position;
-            }
-
-            for (int i = 0; i < IRWrapper.IRController.ServoGroups.Count; i++)
-            {
-                IRWrapper.IRAPI.IRControlGroup g = IRWrapper.IRController.ServoGroups[i];
-
-                if (g.Servos.Any())
+                foreach (IRWrapper.IControlGroup g in IRWrapper.IRController.ServoGroups) 
                 {
-                    GUILayout.BeginHorizontal();
+                    allServos.AddRange (g.Servos);
+                }
 
-                    if (g.Expanded)
+                if (availableServoCommands == null) 
+                {
+                    availableServoCommands = new List<BasicCommand> ();    
+                }
+
+                if (allServos.Count != availableServoCommands.Count) 
+                {
+                    availableServoCommands.Clear ();
+                    //rebuild the list of available commands
+                    foreach (IRWrapper.IServo s in allServos) 
                     {
-                        g.Expanded = !GUILayout.Button(TextureLoader.CollapseIcon, buttonStyle, GUILayout.Width(20), GUILayout.Height(22));
+                        var bc = new BasicCommand (s, s.Position, 1f);
+                        availableServoCommands.Add (bc);
                     }
-                    else
+                }
+
+                servoListScroll = GUILayout.BeginScrollView (servoListScroll, false, false, maxHeight);
+                for (int i = 0; i < IRWrapper.IRController.ServoGroups.Count; i++) 
+                {
+                    IRWrapper.IControlGroup g = IRWrapper.IRController.ServoGroups [i];
+
+                    if (g.Servos.Any ()) 
                     {
-                        g.Expanded = GUILayout.Button(TextureLoader.ExpandIcon, buttonStyle, GUILayout.Width(20), GUILayout.Height(22));
-                    }
+                        GUILayout.BeginHorizontal ();
 
-                    //overload default GUIStyle with bold font
-                    var t = new GUIStyle(GUI.skin.label.name)
-                    {
-                        fontStyle = FontStyle.Bold
-                    };
-
-                    GUILayout.Label(g.Name, t, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-
-                    GUILayout.EndHorizontal();
-
-                    if (g.Expanded)
-                    {
-                        GUILayout.BeginHorizontal(GUILayout.Height(5));
-                        GUILayout.EndHorizontal();
-
-                        foreach (IRWrapper.IRAPI.IRServo servo in g.Servos)
+                        GUI.color = solidColor;
+                        if (g.Expanded) 
                         {
-                            GUILayout.BeginHorizontal();
-
-                            if (GUILayout.Button(new GUIContent(TextureLoader.RightIcon, "Select"), buttonStyle, GUILayout.Width(18), GUILayout.Height(22)))
-                            {
-                                activeServo = servo;
-                                currentPosition = activeServo.Position;
-                                return; //redraw gui window
-                            }
-                            SetTooltipText();
-
-                            var nameStyle = new GUIStyle(GUI.skin.label)
-                            {
-                                alignment = TextAnchor.MiddleLeft,
-                                clipping = TextClipping.Clip
-                            };
-
-                            GUILayout.Label(servo.Name, nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-                            GUILayout.EndHorizontal();
+                            g.Expanded = !GUILayout.Button (TextureLoader.CollapseIcon, buttonStyle, GUILayout.Width (20), GUILayout.Height (22));
+                        } 
+                        else 
+                        {
+                            g.Expanded = GUILayout.Button (TextureLoader.ExpandIcon, buttonStyle, GUILayout.Width (20), GUILayout.Height (22));
                         }
+                        
+                        nameStyle.fontStyle = FontStyle.Bold;
+                        GUILayout.Label (g.Name, nameStyle, GUILayout.ExpandWidth (true), GUILayout.Height (22));
+                        nameStyle.fontStyle = FontStyle.Normal;
+                        GUI.color = opaqueColor;
+                        GUILayout.EndHorizontal ();
 
-                        GUILayout.BeginHorizontal(GUILayout.Height(5));
-                        GUILayout.EndHorizontal();
-                    }
+                        if (g.Expanded) 
+                        {
+                            GUILayout.BeginHorizontal (GUILayout.Height (5));
+                            GUILayout.EndHorizontal ();
+
+                            foreach (IRWrapper.IServo servo in g.Servos) 
+                            {
+                                GUILayout.BeginHorizontal ();
+                                GUI.color = solidColor;
+
+                                var avCommand = availableServoCommands.FirstOrDefault(t => t.servo.Equals(servo));
+
+                                if (avCommand == null) 
+                                {
+                                    Logger.Log ("[Sequencer] Cannot find matching command for servo " + servo.Name, Logger.Level.Debug);
+                                    return;
+                                }
+                               
+
+                                if (GUILayout.Button ("Add", buttonStyle, GUILayout.Width (30), GUILayout.Height (22))) 
+                                {
+                                    openSequence.Pause ();
+                                    openSequence.Reset ();
+                                    
+                                    openSequence.commands.Add (new BasicCommand (avCommand));
+                                }
+                                
+                                GUILayout.Label (servo.Name, nameStyle, GUILayout.ExpandWidth (true), GUILayout.Height (22));
+
+                                Rect last = GUILayoutUtility.GetLastRect();
+                                Vector2 pos = Event.current.mousePosition;
+                                bool highlight = last.Contains(pos);
+                                servo.Highlight = highlight;
+
+                                tmpString = GUILayout.TextField (string.Format ("{0:#0.0#}", avCommand.position), textFieldStyle, GUILayout.Width (40), GUILayout.Height (22));
+                                if (float.TryParse (tmpString, out tmpValue)) 
+                                {
+                                    avCommand.position = Mathf.Clamp(tmpValue, avCommand.servo.MinPosition, avCommand.servo.MaxPosition);
+                                }
+                                GUILayout.Label ("@", nameStyle, GUILayout.Height (22));
+                                tmpString = GUILayout.TextField (string.Format ("{0:#0.0#}", avCommand.speedMultiplier), textFieldStyle, GUILayout.Width (30), GUILayout.Height (22));
+                                if (float.TryParse (tmpString, out tmpValue)) 
+                                {
+                                    avCommand.speedMultiplier = Mathf.Clamp (tmpValue, 0.05f, 1000f);
+                                }
+                                GUI.color = opaqueColor;
+                                GUILayout.EndHorizontal ();
+                            }
+
+                            GUILayout.BeginHorizontal (GUILayout.Height (5));
+                            GUILayout.EndHorizontal ();
+                        }
                     
+                    }
                 }
+                GUILayout.EndScrollView ();
             }
-            GUILayout.EndVertical();
-            GUILayout.EndScrollView();
-
-            GUILayout.BeginVertical();
-            GUILayout.BeginHorizontal();
-
-            GUILayout.Label("Selected servo: " + activeServo.Name, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-            Rect last = GUILayoutUtility.GetLastRect();
-            Vector2 pos = Event.current.mousePosition;
-            bool highlight = last.Contains(pos);
-            activeServo.Highlight = highlight;
-
-            GUILayout.EndHorizontal();
-            /*GUILayout.BeginHorizontal();
-
-            GUILayout.Label("Presets:", GUILayout.Width(50), GUILayout.Height(22));
-            foreach (float p in activeServo.PresetPositions)
+            else 
             {
-                if (GUILayout.Button(p.ToString(), buttonStyle, GUILayout.Height(22)))
+                //here goes actiongroup stuff
+                actionListScroll = GUILayout.BeginScrollView (actionListScroll, false, false, maxHeight);
+                foreach (KSPActionGroup a in Enum.GetValues(typeof(KSPActionGroup)).Cast<KSPActionGroup>())
                 {
-                    var newCommand = new BasicCommand(activeServo, p, activeServo.speedTweak * currentSpeedMultiplier);
-                    openSequence.commands.Add(newCommand);
+                    if (a == KSPActionGroup.None)
+                        continue;
+                    
+                    GUILayout.BeginHorizontal ();
+                    GUI.color = solidColor;
+                    if (GUILayout.Button ("Add", buttonStyle, GUILayout.Width (30), GUILayout.Height (22))) 
+                    {
+                        openSequence.Pause ();
+                        openSequence.Reset ();
+                        
+                        var newCommand = new BasicCommand (a);
+                        openSequence.commands.Add (newCommand);
+                    }
+                    GUILayout.Label ("Toggle AG: " + a.ToString(), GUILayout.ExpandWidth (true), GUILayout.Height (22));
+                    GUI.color = opaqueColor;
+                    GUILayout.EndHorizontal ();
                 }
-            }
-            GUILayout.EndHorizontal();*/
-            GUILayout.BeginHorizontal();
-
-            GUILayout.Label("Position:", GUILayout.Width(50), GUILayout.Height(22));
-            string tmpString;
-            float tmpValue;
-            tmpString = GUILayout.TextField(string.Format("{0:#0.0#}", currentPosition), GUILayout.Width(40), GUILayout.Height(22));
-            if (float.TryParse(tmpString, out tmpValue))
-            {
-                currentPosition = tmpValue;
+                GUILayout.EndScrollView ();
             }
 
-            GUILayout.Label("Speed:", GUILayout.Width(50), GUILayout.Height(22));
-            tmpString = GUILayout.TextField(string.Format("{0:#0.0#}", currentSpeedMultiplier), GUILayout.Width(40), GUILayout.Height(22));
-            if (float.TryParse(tmpString, out tmpValue))
-            {
-                currentSpeedMultiplier = Mathf.Clamp(tmpValue, 0.05f, 1000f);
-            }
-
-            if (GUILayout.Button("Add Command", buttonStyle, GUILayout.Height(22)))
-            {
-                var newCommand = new BasicCommand(activeServo, currentPosition, activeServo.Speed * currentSpeedMultiplier);
-                openSequence.commands.Add(newCommand);
-            }
-            
-            
+            GUILayout.BeginHorizontal(GUILayout.Height(5));
+            GUILayout.Label("", GUILayout.ExpandWidth(true), GUILayout.Height(5));
             GUILayout.EndHorizontal();
-            GUILayout.BeginHorizontal();
 
-            GUILayout.Label("Delay:", GUILayout.Width(50), GUILayout.Height(22));
-            tmpString = GUILayout.TextField(string.Format("{0:#0.0#}", currentDelay), GUILayout.Width(40), GUILayout.Height(22));
-            if (float.TryParse(tmpString, out tmpValue))
+            GUILayout.BeginVertical(GUI.skin.scrollView);
+            GUILayout.BeginHorizontal();
+            GUI.color = solidColor;
+            if (GUILayout.Button("Add", buttonStyle, GUILayout.Width(30), GUILayout.Height(22)))
             {
-                currentDelay = Mathf.Clamp(tmpValue, 0f, 600f);
-            }
-            if (GUILayout.Button("Add Delay", buttonStyle, GUILayout.Height(22)))
-            {
+                openSequence.Pause ();
+                openSequence.Reset ();
+                
                 var newCommand = new BasicCommand(true, currentDelay);
                 openSequence.commands.Add(newCommand);
             }
 
-            if (GUILayout.Button("Add Wait", buttonStyle, GUILayout.Height(22)))
+            GUILayout.Label("Delay for ", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
+            tmpString = GUILayout.TextField(string.Format("{0:#0.0#}", currentDelay), textFieldStyle, GUILayout.Width(40), GUILayout.Height(22));
+            if (float.TryParse(tmpString, out tmpValue))
             {
+                currentDelay = Mathf.Clamp(tmpValue, 0f, 600f);
+            }
+            GUILayout.Label("s ", nameStyle, GUILayout.Width(18), GUILayout.Height(22));
+            
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+
+            if (GUILayout.Button("Add", buttonStyle, GUILayout.Width(30), GUILayout.Height(22)))
+            {
+                openSequence.Pause ();
+                openSequence.Reset ();
+                
                 var newCommand = new BasicCommand(true);
                 openSequence.commands.Add(newCommand);
             }
-
+            GUILayout.Label("Wait for Moves", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
             GUILayout.EndHorizontal();
 
-            GUILayout.BeginHorizontal(GUILayout.Height(10));
+            GUILayout.BeginHorizontal();
+
+            if (GUILayout.Button("Add", buttonStyle, GUILayout.Width(30), GUILayout.Height(22)))
+            {
+                openSequence.Pause ();
+                openSequence.Reset ();
+                
+                var newCommand = new BasicCommand(currentGotoIndex, currentGotoCounter);
+                openSequence.commands.Add(newCommand);
+            }
+
+            GUILayout.BeginVertical();
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Go To Command #", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
+            if (GUILayout.Button ("-", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
+            {
+                currentGotoIndex = Math.Max (currentGotoIndex - 1, 0);
+                currentGotoIndexString = (currentGotoIndex+1).ToString ();
+            }
+            currentGotoIndexString = GUILayout.TextField(string.Format("{0:#0}", currentGotoIndexString), textFieldStyle, GUILayout.Width(25), GUILayout.Height(22));
+
+            if (float.TryParse(currentGotoIndexString, out tmpValue))
+            {
+                currentGotoIndex = (int)Mathf.Clamp(tmpValue-1, 0f, openSequence.commands.Count-1);
+            }
+
+            if (GUILayout.Button ("+", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
+            {
+                currentGotoIndex = Math.Max (Math.Min (currentGotoIndex + 1, openSequence.commands.Count-1), 0);
+                currentGotoIndexString = (currentGotoIndex+1).ToString ();
+            }
             GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Repeat (-1 for loop)", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
+            if (GUILayout.Button ("-", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
+            {
+                currentGotoCounter = Math.Max (currentGotoCounter - 1, -1);
+            }
+
+            tmpString = GUILayout.TextField(string.Format("{0:#0}", currentGotoCounter), textFieldStyle, GUILayout.Width(25), GUILayout.Height(22));
+            if (float.TryParse(tmpString, out tmpValue))
+            {
+                currentGotoCounter = (int)Math.Max(tmpValue, -1);
+            }
+            if (GUILayout.Button ("+", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
+            {
+                currentGotoCounter = Math.Max (currentGotoCounter + 1, -1);
+            }
+            GUILayout.EndHorizontal();
+            GUILayout.EndVertical();
+            
+            GUILayout.EndHorizontal();
+            GUI.color = opaqueColor;
+            GUILayout.EndVertical();
+
+            GUILayout.EndVertical ();
+            GUILayout.BeginVertical();
 
             commandListScroll = GUILayout.BeginScrollView(commandListScroll, false, false, maxHeight);
             GUILayout.BeginVertical();
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Commands:", GUILayout.ExpandWidth(true), GUILayout.Height(22));
+            GUI.color = solidColor;
+            GUILayout.Label("Commands:", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
+            GUI.color = opaqueColor;
             GUILayout.EndHorizontal();
 
             //now begin listing commands in sequence
@@ -776,16 +875,24 @@ namespace IRSequencer.Gui
             {
                 BasicCommand bc = openSequence.commands[i];
 
-                GUILayout.BeginHorizontal();
-
-                var dotStyle = new GUIStyle(GUI.skin.label)
+                if (openSequence.lastCommandIndex == i)
                 {
-                    richText = true,
-                    alignment = TextAnchor.MiddleCenter
-                };
+                    playheadStyle.normal.background = openSequence.commands[i].isActive ? TextureLoader.PlayheadBG : TextureLoader.PlayheadBGPaused;
+                    GUILayout.BeginHorizontal(playheadStyle);
+                }
+                else
+                {
+                    playheadStyle.normal.background = null;
+                    GUILayout.BeginHorizontal(playheadStyle);
+                }
 
+                GUI.color = solidColor;
                 string commandStatus = (bc.isActive || openSequence.lastCommandIndex == i) ? "<color=lime>■</color>" : bc.isFinished ? "<color=green>■</color>" : "<color=silver>■</color>";
+                if (openSequence.lastCommandIndex == i && !bc.isActive)
+                    commandStatus = "<color=yellow>■</color>";
                 GUILayout.Label(commandStatus, dotStyle, GUILayout.Width(20), GUILayout.Height(22));
+
+                GUILayout.Label((i+1).ToString() + ":", dotStyle, GUILayout.Width(25), GUILayout.Height(22));
 
                 var labelText = "";
                 if (bc.wait)
@@ -793,29 +900,42 @@ namespace IRSequencer.Gui
                     if (bc.waitTime > 0f)
                     {
                         if (bc.isActive)
-                            labelText = "Waiting for " + Math.Round(bc.timeStarted + bc.waitTime - UnityEngine.Time.time, 2) + "s";
+                            labelText = "Delaying for " + Math.Round(bc.timeStarted + bc.waitTime - UnityEngine.Time.time, 2) + "s";
                         else
                             labelText = "Delay for " + Math.Round(bc.waitTime, 2) + "s";
                     }
-                    else 
-                        labelText = "Wait";
+                    else if (bc.gotoIndex != -1)
+                    {
+                        labelText = "Go To Command # " + (bc.gotoIndex + 1).ToString();
+                        if (bc.gotoCounter != -1)
+                        {
+                            labelText += ", " + bc.gotoCounter + " more times.";
+                        }
+                    }
+                    else
+                        labelText = (bc.isActive ? "Waiting" : "Wait") + " for Moves";
                 }
                 else if (bc.servo != null) 
                     labelText = bc.servo.Name + " to " + Math.Round(bc.position, 2).ToString() + " at " + Math.Round(bc.speedMultiplier, 2).ToString() + "x";
+                else if (bc.ag != KSPActionGroup.None)
+                {
+                    labelText = "Toggle ActionGroup: " + bc.ag.ToString ();
+                }
 
-                GUILayout.Label(labelText, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-
+                GUILayout.Label(labelText, nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
                 if (i > 0)
                 {
                     if (GUILayout.Button(TextureLoader.UpIcon, buttonStyle, GUILayout.Width(20), GUILayout.Height(22)))
                     {
                         openSequence.Pause();
                         var tmp = openSequence.commands[i - 1];
-                        openSequence.commands[i-1] = bc;
+                        openSequence.commands[i - 1] = bc;
                         openSequence.commands[i] = tmp;
                         openSequence.Reset();
                     }
                 }
+                else
+                    GUILayout.Space(24);
 
                 if (i < openSequence.commands.Count - 1)
                 {
@@ -828,11 +948,16 @@ namespace IRSequencer.Gui
                         openSequence.Reset();
                     }
                 }
+                else
+                    GUILayout.Space(24);
+
                 if (GUILayout.Button(TextureLoader.TrashIcon, buttonStyle, GUILayout.Width(20), GUILayout.Height(22)))
                 {
-                   openSequence.commands.RemoveAt(i);
-                   return;
+                    openSequence.Pause();
+                    openSequence.commands.RemoveAt(i);
+                    openSequence.Reset();
                 }
+                GUI.color = opaqueColor;
                 GUILayout.EndHorizontal();
             }
             
@@ -841,23 +966,40 @@ namespace IRSequencer.Gui
 
             GUILayout.BeginHorizontal();
 
-            if (GUILayout.Button("Reset", buttonStyle, GUILayout.Height(22)))
+            GUI.color = solidColor;
+
+            bool playToggle = GUILayout.Toggle(openSequence.isActive,
+                   openSequence.isActive ? "Pause" : "Play",
+                   buttonStyle, GUILayout.Width(100), GUILayout.Height(22));
+            SetTooltipText();
+
+            if (playToggle && !openSequence.isLocked)
             {
-                openSequence.Reset();
+                if (playToggle != openSequence.isActive)
+                {
+                    openSequence.Start();
+                }
+            }
+            else if (!openSequence.isLocked)
+            {
+                if (playToggle != openSequence.isActive && !openSequence.isFinished)
+                {
+                    openSequence.Pause();
+                }
+            }
+            
+            if (GUILayout.Button("Stop", buttonStyle, GUILayout.Width(100), GUILayout.Height(22)))
+            {
+                if (!openSequence.isLocked)
+                {
+                    openSequence.Pause();
+                    openSequence.Reset();
+                }
             }
 
-            if (GUILayout.Button("Start", buttonStyle, GUILayout.Height(22)))
-            {
-                openSequence.Start();
-            }
-
-            if (GUILayout.Button("Pause", buttonStyle, GUILayout.Height(22)))
-            {
-                openSequence.Pause();
-            }
-
-            openSequence.isLooped = GUILayout.Toggle(openSequence.isLooped, "Loop", buttonStyle, GUILayout.Width(40), GUILayout.Height(22));
-
+            openSequence.isLooped = GUILayout.Toggle(openSequence.isLooped, "Looping", buttonStyle, GUILayout.Height(22));
+            
+            GUI.color = opaqueColor;
             GUILayout.EndHorizontal();
 
             GUILayout.EndVertical();
@@ -886,6 +1028,23 @@ namespace IRSequencer.Gui
 
         private void OnGUI()
         {
+            //requires ServoGroups to be parsed
+            if (!IRWrapper.APIReady)
+                return;
+
+            /*if (IRWrapper.IRController.ServoGroups == null)
+                return;
+
+            if (IRWrapper.IRController.ServoGroups.Count == 0)
+                return;
+            */
+            var storage = FlightGlobals.ActiveVessel.FindPartModulesImplementing<SequencerStorage>();
+            if (GUIEnabled && (storage == null || storage.Count == 0) )
+            {
+                ScreenMessages.PostScreenMessage("Sequencer Storage module is required (add probe core).", 3, ScreenMessageStyle.UPPER_CENTER);
+                GUIEnabled = false;
+                return;
+            }
 
             if (SequencerWindowPos.x == 0 && SequencerWindowPos.y == 0)
             {
@@ -896,28 +1055,38 @@ namespace IRSequencer.Gui
             {
                 SequencerEditorWindowPos = new Rect(Screen.width - 510, 300, 10, 10);
             }
-            
+
             GUI.skin = DefaultSkinProvider.DefaultSkin;
+            GUI.color = opaqueColor;
+
+            if (!GUISetupDone)
+                InitGUI();
             
             if (GUIEnabled && !guiHidden)
             {
                 SequencerWindowPos = GUILayout.Window(SequencerWindowID, SequencerWindowPos,
                 SequencerControlWindow,
-                "IR Sequencer",
-                GUILayout.Width(400),
+                "Servo Sequencer",
+                GUILayout.Width(300),
                 GUILayout.Height(80));
 
                 if (guiSequenceEditor)
                 {
                     float height = Screen.height / 2f;
-                    SequencerEditorWindowPos = GUILayout.Window(SequencerEditorWindowID, SequencerEditorWindowPos,
-                    SequencerEditorWindow,
-                    "Edit Sequence",
-                    GUILayout.Width(600),
-                    GUILayout.Height(height));
+                    string windowTitle = "Sequence Editor: " + openSequence.name;
+
+                    if (openSequence.isLocked)
+                        windowTitle += " (locked)";
+
+                    if(openSequence != null)
+                        SequencerEditorWindowPos = GUILayout.Window(SequencerEditorWindowID, SequencerEditorWindowPos,
+                        SequencerEditorWindow,
+                        windowTitle,
+                        GUILayout.Width(640),
+                        GUILayout.Height(height));
                 }
             }
-
+            GUI.color = solidColor;
             DrawTooltip();
         }
     }
