@@ -387,7 +387,12 @@ namespace IRSequencer.Gui
             GameEvents.onVesselChange.Add(OnVesselChange);
             GameEvents.onVesselWasModified.Add(OnVesselWasModified);
             GameEvents.onGUIApplicationLauncherReady.Add(OnAppReady);
-            
+
+            if (ApplicationLauncher.Ready && appLauncherButton == null)
+            {
+                OnAppReady();
+            }
+
             Logger.Log("[Sequencer] Awake successful", Logger.Level.Debug);
         }
         
