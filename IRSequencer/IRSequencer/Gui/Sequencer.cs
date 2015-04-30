@@ -47,11 +47,15 @@ namespace IRSequencer.Gui
         private static Color solidColor;
         private static Color opaqueColor;
 
+        //Sequence Editor UI related
         private float currentDelay = 1.0f;
         private int currentMode = 0;
         private string currentGotoIndexString = "1";
         private int currentGotoIndex = 0;
         private int currentGotoCounter = -1;
+        //index wher to insert new commands
+        private int currentCommandIndex = -1;
+
 
         protected static Rect SequencerWindowPos;
         protected static Rect SequencerEditorWindowPos;
@@ -711,8 +715,14 @@ namespace IRSequencer.Gui
                                 {
                                     openSequence.Pause ();
                                     openSequence.Reset ();
-                                    
-                                    openSequence.commands.Add (new BasicCommand (avCommand));
+                                    if (currentCommandIndex + 1 == openSequence.commands.Count)
+                                    {
+                                        openSequence.commands.Add (new BasicCommand (avCommand));    
+                                    }
+                                    else
+                                    {
+                                        openSequence.commands.Insert (currentCommandIndex + 1, new BasicCommand (avCommand));
+                                    }
                                 }
                                 
                                 GUILayout.Label (servo.Name, nameStyle, GUILayout.ExpandWidth (true), GUILayout.Height (22));
@@ -762,7 +772,15 @@ namespace IRSequencer.Gui
                         openSequence.Reset ();
                         
                         var newCommand = new BasicCommand (a);
-                        openSequence.commands.Add (newCommand);
+
+                        if (currentCommandIndex + 1 == openSequence.commands.Count)
+                        {
+                            openSequence.commands.Add (newCommand);    
+                        }
+                        else
+                        {
+                            openSequence.commands.Insert (currentCommandIndex + 1, newCommand);
+                        }
                     }
                     GUILayout.Label ("Toggle AG: " + a.ToString(), GUILayout.ExpandWidth (true), GUILayout.Height (22));
                     GUI.color = opaqueColor;
@@ -784,7 +802,14 @@ namespace IRSequencer.Gui
                 openSequence.Reset ();
                 
                 var newCommand = new BasicCommand(true, currentDelay);
-                openSequence.commands.Add(newCommand);
+                if (currentCommandIndex + 1 == openSequence.commands.Count)
+                {
+                    openSequence.commands.Add (newCommand);    
+                }
+                else
+                {
+                    openSequence.commands.Insert (currentCommandIndex + 1, newCommand);
+                }
             }
 
             GUILayout.Label("Delay for ", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
@@ -804,7 +829,14 @@ namespace IRSequencer.Gui
                 openSequence.Reset ();
                 
                 var newCommand = new BasicCommand(true);
-                openSequence.commands.Add(newCommand);
+                if (currentCommandIndex + 1 == openSequence.commands.Count)
+                {
+                    openSequence.commands.Add (newCommand);    
+                }
+                else
+                {
+                    openSequence.commands.Insert (currentCommandIndex + 1, newCommand);
+                }
             }
             GUILayout.Label("Wait for Moves", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
             GUILayout.EndHorizontal();
@@ -817,7 +849,14 @@ namespace IRSequencer.Gui
                 openSequence.Reset ();
                 
                 var newCommand = new BasicCommand(currentGotoIndex, currentGotoCounter);
-                openSequence.commands.Add(newCommand);
+                if (currentCommandIndex + 1 == openSequence.commands.Count)
+                {
+                    openSequence.commands.Add (newCommand);    
+                }
+                else
+                {
+                    openSequence.commands.Insert (currentCommandIndex + 1, newCommand);
+                }
             }
 
             GUILayout.BeginVertical();
@@ -875,6 +914,9 @@ namespace IRSequencer.Gui
             GUI.color = opaqueColor;
             GUILayout.EndHorizontal();
 
+            //set pointer to last command
+            if (currentCommandIndex < -1 || currentCommandIndex >= openSequence.commands.Count)
+                currentCommandIndex = openSequence.commands.Count-1;
             //now begin listing commands in sequence
             for (int i = 0; i < openSequence.commands.Count; i++ )
             {
@@ -897,7 +939,12 @@ namespace IRSequencer.Gui
                     commandStatus = "<color=yellow>■</color>";
                 GUILayout.Label(commandStatus, dotStyle, GUILayout.Width(20), GUILayout.Height(22));
 
-                GUILayout.Label((i+1).ToString() + ":", dotStyle, GUILayout.Width(25), GUILayout.Height(22));
+                //GUILayout.Label((i+1).ToString() + ":", dotStyle, GUILayout.Width(25), GUILayout.Height(22));
+
+                if(GUILayout.Toggle((i == currentCommandIndex), (i+1).ToString() + ":", buttonStyle, GUILayout.Width(25), GUILayout.Height(22)))
+                {
+                    currentCommandIndex = i;
+                }
 
                 var labelText = "";
                 if (bc.wait)
