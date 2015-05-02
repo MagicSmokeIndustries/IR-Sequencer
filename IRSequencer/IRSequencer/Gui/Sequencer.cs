@@ -150,7 +150,7 @@ namespace IRSequencer.Gui
             }
         }
 
-        private void OnAppReady()
+        private void AddAppLauncherButton()
         {
             if (appLauncherButton == null)
             {
@@ -161,13 +161,12 @@ namespace IRSequencer.Gui
                     
                     appLauncherButton = ApplicationLauncher.Instance.AddModApplication(delegate { GUIEnabled = true; },
                         delegate { GUIEnabled = false; }, null, null, null, null,
-                        ApplicationLauncher.AppScenes.FLIGHT | ApplicationLauncher.AppScenes.VAB |
-                        ApplicationLauncher.AppScenes.SPH, texture);
+                        ApplicationLauncher.AppScenes.FLIGHT, texture);
 
                 }
                 catch (Exception ex)
                 {
-                    Logger.Log(string.Format("[GUI OnnAppReady Exception, {0}", ex.Message), Logger.Level.Fatal);
+                    Logger.Log(string.Format("[GUI AddAppLauncherButton Exception, {0}", ex.Message), Logger.Level.Fatal);
                 }
             }
         }
@@ -390,16 +389,22 @@ namespace IRSequencer.Gui
 
             GameEvents.onVesselChange.Add(OnVesselChange);
             GameEvents.onVesselWasModified.Add(OnVesselWasModified);
-            GameEvents.onGUIApplicationLauncherReady.Add(OnAppReady);
+
+            GameEvents.onGameSceneLoadRequested.Remove(OnGameSceneLoadRequestedForAppLauncher);
 
             if (ApplicationLauncher.Ready && appLauncherButton == null)
             {
-                OnAppReady();
+                AddAppLauncherButton();
             }
 
             Logger.Log("[Sequencer] Awake successful", Logger.Level.Debug);
         }
-        
+
+        void OnGameSceneLoadRequestedForAppLauncher(GameScenes SceneToLoad)
+        {
+            DestroyAppLauncherButton();
+        }
+
         public void Start()
         {
             try
@@ -424,6 +429,22 @@ namespace IRSequencer.Gui
             guiHidden = true;
         }
 
+        private void DestroyAppLauncherButton()
+        {
+            try
+            {
+                if (appLauncherButton != null && ApplicationLauncher.Instance != null)
+                {
+                    ApplicationLauncher.Instance.RemoveModApplication(appLauncherButton);
+                    appLauncherButton = null;
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.Log("[Sequencer] Failed unregistering AppLauncher handlers," + e.Message);
+            }
+        }
+
         private void OnDestroy()
         {
             GameEvents.onShowUI.Remove(OnShowUI);
@@ -435,20 +456,8 @@ namespace IRSequencer.Gui
             Sequencer.Instance.isReady = false;
             SaveConfigXml();
 
-            try
-            {
-                GameEvents.onGUIApplicationLauncherReady.Remove(OnAppReady);
-
-                if (appLauncherButton != null && ApplicationLauncher.Instance != null)
-                {
-                    ApplicationLauncher.Instance.RemoveModApplication(appLauncherButton);
-                    appLauncherButton = null;
-                }
-            }
-            catch (Exception e)
-            {
-                Logger.Log("[Sequencer] Failed unregistering AppLauncher handlers," + e.Message);
-            }
+            GameEvents.onGameSceneLoadRequested.Remove(OnGameSceneLoadRequestedForAppLauncher);
+            DestroyAppLauncherButton();
 
             //consider unloading textures too in TextureLoader
 
@@ -1082,14 +1091,19 @@ namespace IRSequencer.Gui
         {
             //requires ServoGroups to be parsed
             if (!IRWrapper.APIReady)
+            {
+                if (appLauncherButton != null)
+                {
+                    appLauncherButton.VisibleInScenes = ApplicationLauncher.AppScenes.NEVER;
+                }
                 return;
+            }
 
-            /*if (IRWrapper.IRController.ServoGroups == null)
-                return;
-
-            if (IRWrapper.IRController.ServoGroups.Count == 0)
-                return;
-            */
+            if (appLauncherButton != null)
+            {
+                appLauncherButton.VisibleInScenes = ApplicationLauncher.AppScenes.FLIGHT;
+            }
+            
             var storage = FlightGlobals.ActiveVessel.FindPartModulesImplementing<SequencerStorage>();
             if (GUIEnabled && (storage == null || storage.Count == 0) )
             {
