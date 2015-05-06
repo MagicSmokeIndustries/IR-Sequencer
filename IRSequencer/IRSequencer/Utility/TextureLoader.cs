@@ -13,6 +13,9 @@ namespace IRSequencer.Utility
         internal static Texture2D PlayheadBG { get; private set; }
         internal static Texture2D PlayheadBGPaused { get; private set; }
 
+        internal static Texture2D ToggleBG { get; private set; }
+        internal static Texture2D ToggleBGHover { get; private set; }
+
         internal static Texture2D ExpandIcon { get; private set; }
         internal static Texture2D CollapseIcon { get; private set; }
         internal static Texture2D DownIcon { get; private set; }
@@ -48,8 +51,14 @@ namespace IRSequencer.Utility
                 EditorBackgroundText = CreateTextureFromColor(1, 1, new Color32(81, 86, 94, 255));
                 PlayheadBG = CreateTextureFromColor(1, 1, new Color32(85, 170, 0, 64));
                 PlayheadBGPaused = CreateTextureFromColor(1, 1, new Color32(255, 170, 0, 64));
+
+                ToggleBG = CreateBorderTextureFromColor(25, 25, new Color32(128, 128, 128, 64), new Color32(155, 155, 155, 255));
+                ToggleBGHover = CreateBorderTextureFromColor(25, 25, new Color32(200, 200, 200, 64), Color.white);
                 //Transparent = CreateTextureFromColor(1, 1, new Color32(255, 255, 255, 0));
-                
+
+                //ExpandIcon = ToggleBG;
+                //CollapseIcon = ToggleBGHover;
+                //ExpandIcon = GameDatabase.Instance.GetTexture(texPath + "expand.png", false);
                 ExpandIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
                 LoadImageFromFile(ExpandIcon, "expand.png");
 
@@ -153,6 +162,27 @@ namespace IRSequencer.Utility
 
             var result = new Texture2D(width, height);
             result.SetPixels(pix);
+            result.Apply();
+
+            return result;
+        }
+
+        private static Texture2D CreateBorderTextureFromColor(int width, int height, Color col, Color borderCol)
+        {
+
+            var result = CreateTextureFromColor (width, height, col);
+
+            for (int x = 0; x < result.width; x++) 
+            {
+                for (int y = 0; y < result.height; y++) 
+                {
+                    if (x < 1 || x>result.width-2) 
+                        result.SetPixel(x, y, borderCol);
+                    else if (y < 1 || y>result.height-2) 
+                        result.SetPixel(x, y, borderCol);
+                }
+            }
+
             result.Apply();
 
             return result;

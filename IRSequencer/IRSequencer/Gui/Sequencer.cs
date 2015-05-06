@@ -141,17 +141,17 @@ namespace IRSequencer.Gui
                     onNormal = 
                     {
                         textColor = Color.white,
-                        background = TextureLoader.PlayheadBGPaused
+                        background = TextureLoader.ToggleBG
                     },
                     onHover = 
                     {
-                        textColor = Color.yellow,
-                        background = TextureLoader.PlayheadBG
+                        textColor = Color.white,
+                        background = TextureLoader.ToggleBGHover
                     },
                     hover = 
                     {
                         textColor = Color.white,
-                        background = TextureLoader.PlayheadBG
+                        background = TextureLoader.ToggleBGHover
                     },
                     alignment = TextAnchor.MiddleCenter,
                     padding = new RectOffset(1, 1, 1, 1),
@@ -957,7 +957,7 @@ namespace IRSequencer.Gui
 
             if (insertCommandIndex == -1) 
             {
-                playheadStyle.normal.background = TextureLoader.PlayheadBGPaused;
+                playheadStyle.normal.background = TextureLoader.ToggleBGHover;
                 GUILayout.BeginHorizontal (GUILayout.Height(1));
                 GUILayout.Label ("", playheadStyle, GUILayout.Height(1));
                 GUILayout.EndHorizontal ();
@@ -1068,7 +1068,7 @@ namespace IRSequencer.Gui
 
                 if (i == insertCommandIndex) 
                 {
-                    playheadStyle.normal.background = TextureLoader.PlayheadBGPaused;
+                    playheadStyle.normal.background = TextureLoader.ToggleBGHover;
                     GUILayout.BeginHorizontal (GUILayout.Height(1));
                     GUILayout.Label ("", playheadStyle, GUILayout.Height(1));
                     GUILayout.EndHorizontal ();
