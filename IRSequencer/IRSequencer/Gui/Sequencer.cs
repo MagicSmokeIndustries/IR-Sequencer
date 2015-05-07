@@ -143,6 +143,11 @@ namespace IRSequencer.Gui
                         textColor = Color.white,
                         background = TextureLoader.ToggleBG
                     },
+                    onActive = 
+                    {
+                        textColor = Color.white,
+                        background = TextureLoader.ToggleBG
+                    },
                     onHover = 
                     {
                         textColor = Color.white,
@@ -152,6 +157,11 @@ namespace IRSequencer.Gui
                     {
                         textColor = Color.white,
                         background = TextureLoader.ToggleBGHover
+                    },
+                    active = 
+                    {
+                        textColor = Color.white,
+                        background = TextureLoader.ToggleBG
                     },
                     alignment = TextAnchor.MiddleCenter,
                     padding = new RectOffset(1, 1, 1, 1),
