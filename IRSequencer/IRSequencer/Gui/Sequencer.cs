@@ -43,15 +43,20 @@ namespace IRSequencer.Gui
         private static GUIStyle dotStyle;
         private static GUIStyle playheadStyle;
         private static GUIStyle textFieldStyle;
+        private static GUIStyle insertToggleStyle;
 
         private static Color solidColor;
         private static Color opaqueColor;
 
+        //Sequence Editor UI related
         private float currentDelay = 1.0f;
         private int currentMode = 0;
         private string currentGotoIndexString = "1";
         private int currentGotoIndex = 0;
         private int currentGotoCounter = -1;
+        //index wher to insert new commands
+        private int insertCommandIndex = -1;
+
 
         protected static Rect SequencerWindowPos;
         protected static Rect SequencerEditorWindowPos;
@@ -131,6 +136,38 @@ namespace IRSequencer.Gui
                     },
                 };
 
+                insertToggleStyle = new GUIStyle (GUI.skin.label) 
+                {
+                    onNormal = 
+                    {
+                        textColor = Color.white,
+                        background = TextureLoader.ToggleBG
+                    },
+                    onActive = 
+                    {
+                        textColor = Color.white,
+                        background = TextureLoader.ToggleBG
+                    },
+                    onHover = 
+                    {
+                        textColor = Color.white,
+                        background = TextureLoader.ToggleBGHover
+                    },
+                    hover = 
+                    {
+                        textColor = Color.white,
+                        background = TextureLoader.ToggleBGHover
+                    },
+                    active = 
+                    {
+                        textColor = Color.white,
+                        background = TextureLoader.ToggleBG
+                    },
+                    alignment = TextAnchor.MiddleCenter,
+                    padding = new RectOffset(1, 1, 1, 1),
+                    border = new RectOffset (1, 1, 1, 1)
+                };
+
                 dotStyle = new GUIStyle(GUI.skin.label)
                 {
                     richText = true,
@@ -146,7 +183,7 @@ namespace IRSequencer.Gui
             }
         }
 
-        private void OnAppReady()
+        private void AddAppLauncherButton()
         {
             if (appLauncherButton == null)
             {
@@ -157,13 +194,12 @@ namespace IRSequencer.Gui
                     
                     appLauncherButton = ApplicationLauncher.Instance.AddModApplication(delegate { GUIEnabled = true; },
                         delegate { GUIEnabled = false; }, null, null, null, null,
-                        ApplicationLauncher.AppScenes.FLIGHT | ApplicationLauncher.AppScenes.VAB |
-                        ApplicationLauncher.AppScenes.SPH, texture);
+                        ApplicationLauncher.AppScenes.FLIGHT, texture);
 
                 }
                 catch (Exception ex)
                 {
-                    Logger.Log(string.Format("[GUI OnnAppReady Exception, {0}", ex.Message), Logger.Level.Fatal);
+                    Logger.Log(string.Format("[GUI AddAppLauncherButton Exception, {0}", ex.Message), Logger.Level.Fatal);
                 }
             }
         }
@@ -386,16 +422,22 @@ namespace IRSequencer.Gui
 
             GameEvents.onVesselChange.Add(OnVesselChange);
             GameEvents.onVesselWasModified.Add(OnVesselWasModified);
-            GameEvents.onGUIApplicationLauncherReady.Add(OnAppReady);
+
+            GameEvents.onGameSceneLoadRequested.Remove(OnGameSceneLoadRequestedForAppLauncher);
 
             if (ApplicationLauncher.Ready && appLauncherButton == null)
             {
-                OnAppReady();
+                AddAppLauncherButton();
             }
 
             Logger.Log("[Sequencer] Awake successful", Logger.Level.Debug);
         }
-        
+
+        void OnGameSceneLoadRequestedForAppLauncher(GameScenes SceneToLoad)
+        {
+            DestroyAppLauncherButton();
+        }
+
         public void Start()
         {
             try
@@ -420,6 +462,22 @@ namespace IRSequencer.Gui
             guiHidden = true;
         }
 
+        private void DestroyAppLauncherButton()
+        {
+            try
+            {
+                if (appLauncherButton != null && ApplicationLauncher.Instance != null)
+                {
+                    ApplicationLauncher.Instance.RemoveModApplication(appLauncherButton);
+                    appLauncherButton = null;
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.Log("[Sequencer] Failed unregistering AppLauncher handlers," + e.Message);
+            }
+        }
+
         private void OnDestroy()
         {
             GameEvents.onShowUI.Remove(OnShowUI);
@@ -431,20 +489,8 @@ namespace IRSequencer.Gui
             Sequencer.Instance.isReady = false;
             SaveConfigXml();
 
-            try
-            {
-                GameEvents.onGUIApplicationLauncherReady.Remove(OnAppReady);
-
-                if (appLauncherButton != null && ApplicationLauncher.Instance != null)
-                {
-                    ApplicationLauncher.Instance.RemoveModApplication(appLauncherButton);
-                    appLauncherButton = null;
-                }
-            }
-            catch (Exception e)
-            {
-                Logger.Log("[Sequencer] Failed unregistering AppLauncher handlers," + e.Message);
-            }
+            GameEvents.onGameSceneLoadRequested.Remove(OnGameSceneLoadRequestedForAppLauncher);
+            DestroyAppLauncherButton();
 
             //consider unloading textures too in TextureLoader
 
@@ -711,8 +757,15 @@ namespace IRSequencer.Gui
                                 {
                                     openSequence.Pause ();
                                     openSequence.Reset ();
-                                    
-                                    openSequence.commands.Add (new BasicCommand (avCommand));
+                                    if (insertCommandIndex + 1 == openSequence.commands.Count)
+                                    {
+                                        openSequence.commands.Add (new BasicCommand (avCommand));
+                                        insertCommandIndex++;
+                                    }
+                                    else
+                                    {
+                                        openSequence.commands.Insert (insertCommandIndex + 1, new BasicCommand (avCommand));
+                                    }
                                 }
                                 
                                 GUILayout.Label (servo.Name, nameStyle, GUILayout.ExpandWidth (true), GUILayout.Height (22));
@@ -762,7 +815,16 @@ namespace IRSequencer.Gui
                         openSequence.Reset ();
                         
                         var newCommand = new BasicCommand (a);
-                        openSequence.commands.Add (newCommand);
+
+                        if (insertCommandIndex + 1 == openSequence.commands.Count)
+                        {
+                            openSequence.commands.Add (newCommand);
+                            insertCommandIndex++;
+                        }
+                        else
+                        {
+                            openSequence.commands.Insert (insertCommandIndex + 1, newCommand);
+                        }
                     }
                     GUILayout.Label ("Toggle AG: " + a.ToString(), GUILayout.ExpandWidth (true), GUILayout.Height (22));
                     GUI.color = opaqueColor;
@@ -784,7 +846,15 @@ namespace IRSequencer.Gui
                 openSequence.Reset ();
                 
                 var newCommand = new BasicCommand(true, currentDelay);
-                openSequence.commands.Add(newCommand);
+                if (insertCommandIndex + 1 == openSequence.commands.Count)
+                {
+                    openSequence.commands.Add (newCommand);
+                    insertCommandIndex++;
+                }
+                else
+                {
+                    openSequence.commands.Insert (insertCommandIndex + 1, newCommand);
+                }
             }
 
             GUILayout.Label("Delay for ", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
@@ -804,7 +874,15 @@ namespace IRSequencer.Gui
                 openSequence.Reset ();
                 
                 var newCommand = new BasicCommand(true);
-                openSequence.commands.Add(newCommand);
+                if (insertCommandIndex + 1 == openSequence.commands.Count)
+                {
+                    openSequence.commands.Add (newCommand);
+                    insertCommandIndex++;
+                }
+                else
+                {
+                    openSequence.commands.Insert (insertCommandIndex + 1, newCommand);
+                }
             }
             GUILayout.Label("Wait for Moves", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
             GUILayout.EndHorizontal();
@@ -817,7 +895,15 @@ namespace IRSequencer.Gui
                 openSequence.Reset ();
                 
                 var newCommand = new BasicCommand(currentGotoIndex, currentGotoCounter);
-                openSequence.commands.Add(newCommand);
+                if (insertCommandIndex + 1 == openSequence.commands.Count)
+                {
+                    openSequence.commands.Add (newCommand);
+                    insertCommandIndex++;
+                }
+                else
+                {
+                    openSequence.commands.Insert (insertCommandIndex + 1, newCommand);
+                }
             }
 
             GUILayout.BeginVertical();
@@ -875,6 +961,22 @@ namespace IRSequencer.Gui
             GUI.color = opaqueColor;
             GUILayout.EndHorizontal();
 
+            //set pointer to last command
+            if (insertCommandIndex < -1 || insertCommandIndex >= openSequence.commands.Count)
+                insertCommandIndex = openSequence.commands.Count-1;
+
+            if (insertCommandIndex == -1) 
+            {
+                playheadStyle.normal.background = TextureLoader.ToggleBGHover;
+                GUILayout.BeginHorizontal (GUILayout.Height(1));
+                GUILayout.Label ("", playheadStyle, GUILayout.Height(1));
+                GUILayout.EndHorizontal ();
+            } 
+            else 
+            {
+                playheadStyle.normal.background = null;
+            }
+
             //now begin listing commands in sequence
             for (int i = 0; i < openSequence.commands.Count; i++ )
             {
@@ -897,7 +999,16 @@ namespace IRSequencer.Gui
                     commandStatus = "<color=yellow>■</color>";
                 GUILayout.Label(commandStatus, dotStyle, GUILayout.Width(20), GUILayout.Height(22));
 
-                GUILayout.Label((i+1).ToString() + ":", dotStyle, GUILayout.Width(25), GUILayout.Height(22));
+                //GUILayout.Label((i+1).ToString() + ":", dotStyle, GUILayout.Width(25), GUILayout.Height(22));
+
+                if(GUILayout.Toggle((i == insertCommandIndex), new GUIContent((i+1).ToString() + ":", "Insert After"), insertToggleStyle, GUILayout.Width(25), GUILayout.Height(22)))
+                {
+                    insertCommandIndex = i;
+                }
+                else if (insertCommandIndex==i)
+                {
+                    insertCommandIndex = -1;
+                }
 
                 var labelText = "";
                 if (bc.wait)
@@ -964,6 +1075,19 @@ namespace IRSequencer.Gui
                 }
                 GUI.color = opaqueColor;
                 GUILayout.EndHorizontal();
+
+                if (i == insertCommandIndex) 
+                {
+                    playheadStyle.normal.background = TextureLoader.ToggleBGHover;
+                    GUILayout.BeginHorizontal (GUILayout.Height(1));
+                    GUILayout.Label ("", playheadStyle, GUILayout.Height(1));
+                    GUILayout.EndHorizontal ();
+                } 
+                else 
+                {
+                    playheadStyle.normal.background = null;
+                }
+                    
             }
             
             GUILayout.EndVertical();
@@ -1035,14 +1159,19 @@ namespace IRSequencer.Gui
         {
             //requires ServoGroups to be parsed
             if (!IRWrapper.APIReady)
+            {
+                if (appLauncherButton != null)
+                {
+                    appLauncherButton.VisibleInScenes = ApplicationLauncher.AppScenes.NEVER;
+                }
                 return;
+            }
 
-            /*if (IRWrapper.IRController.ServoGroups == null)
-                return;
-
-            if (IRWrapper.IRController.ServoGroups.Count == 0)
-                return;
-            */
+            if (appLauncherButton != null)
+            {
+                appLauncherButton.VisibleInScenes = ApplicationLauncher.AppScenes.FLIGHT;
+            }
+            
             var storage = FlightGlobals.ActiveVessel.FindPartModulesImplementing<SequencerStorage>();
             if (GUIEnabled && (storage == null || storage.Count == 0) )
             {

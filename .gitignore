@@ -56,3 +56,5 @@ IRSequencer/IRSequencer.v12.suo
 IRSequencer/IRSequencer.v12.suo
 *.suo
 IRSequencer/IRSequencer.v12.suo
+*.cache
+IRSequencer/IRSequencer/obj/Release/IRSequencer.csproj.FileListAbsolute.txt
