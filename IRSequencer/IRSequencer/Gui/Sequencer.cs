@@ -19,7 +19,7 @@ namespace IRSequencer.Gui
     /// So far relies on ControlGUI to parse all servos to ServoGroups, 
     /// until we move this functinality elsewhere
     /// </summary>
-    [KSPAddon(KSPAddon.Startup.Flight, false)]
+    [KSPAddon(KSPAddon.Startup.EveryScene, false)]
     public class Sequencer : MonoBehaviour
     {
         public bool guiHidden = false;
@@ -27,6 +27,7 @@ namespace IRSequencer.Gui
         public bool GUIEnabled = false;
         public bool guiSequenceEditor = false;
         private bool isReady = false;
+        private bool firstUpdate = true;
 
         public bool isEnabled = true;
         internal static bool GUISetupDone = false;
@@ -201,6 +202,22 @@ namespace IRSequencer.Gui
                 {
                     Logger.Log(string.Format("[GUI AddAppLauncherButton Exception, {0}", ex.Message), Logger.Level.Fatal);
                 }
+            }
+        }
+
+        public void Update()
+        {
+            if(firstUpdate)
+            {
+                try
+                {
+                    IRWrapper.InitWrapper();
+                }
+                catch (Exception e)
+                {
+                    Logger.Log("[Sequencer] Exception while initialising API " + e.Message, Logger.Level.Debug);
+                }
+                firstUpdate = false;
             }
         }
 
@@ -407,6 +424,24 @@ namespace IRSequencer.Gui
             }
         }
 
+        private void OnEditorShipModified(ShipConstruct ship)
+        {
+            if(!IRWrapper.APIReady)
+            {
+                IRWrapper.InitWrapper();
+            }
+            guiSequenceEditor = false;
+            availableServoCommands = null;
+            openSequence = null;
+            
+            var storagePart = ship.Parts.Find(p => p.FindModuleImplementing<SequencerStorage>() != null);
+            if (storagePart != null)
+            {
+                var storageModule = storagePart.FindModuleImplementing<SequencerStorage>();
+                storageModule.LoadSequences();
+            }
+        }
+
         private void Awake()
         {
             LoadConfigXml();
@@ -422,6 +457,7 @@ namespace IRSequencer.Gui
 
             GameEvents.onVesselChange.Add(OnVesselChange);
             GameEvents.onVesselWasModified.Add(OnVesselWasModified);
+            GameEvents.onEditorShipModified.Add(OnEditorShipModified);
 
             GameEvents.onGameSceneLoadRequested.Remove(OnGameSceneLoadRequestedForAppLauncher);
 
@@ -449,7 +485,7 @@ namespace IRSequencer.Gui
                 Logger.Log("[Sequencer] Exception while initialising API " + e.Message, Logger.Level.Debug);
             }
 
-            Logger.Log("[Sequencer] Start successful", Logger.Level.Debug);
+            Logger.Log("[Sequencer] OnStart successful", Logger.Level.Debug);
         }
 
         private void OnShowUI()
@@ -485,7 +521,8 @@ namespace IRSequencer.Gui
 
             GameEvents.onVesselChange.Remove(OnVesselChange);
             GameEvents.onVesselWasModified.Remove(OnVesselWasModified);
-            
+            GameEvents.onEditorShipModified.Remove(OnEditorShipModified);
+
             Sequencer.Instance.isReady = false;
             SaveConfigXml();
 
@@ -1169,15 +1206,19 @@ namespace IRSequencer.Gui
 
             if (appLauncherButton != null)
             {
-                appLauncherButton.VisibleInScenes = ApplicationLauncher.AppScenes.FLIGHT;
+                appLauncherButton.VisibleInScenes = ApplicationLauncher.AppScenes.FLIGHT | ApplicationLauncher.AppScenes.SPH | ApplicationLauncher.AppScenes.VAB;
             }
-            
-            var storage = FlightGlobals.ActiveVessel.FindPartModulesImplementing<SequencerStorage>();
-            if (GUIEnabled && (storage == null || storage.Count == 0) )
+
+
+            if (HighLogic.LoadedSceneIsFlight)
             {
-                ScreenMessages.PostScreenMessage("Sequencer Storage module is required (add probe core).", 3, ScreenMessageStyle.UPPER_CENTER);
-                GUIEnabled = false;
-                return;
+                var storage = FlightGlobals.ActiveVessel.FindPartModulesImplementing<SequencerStorage>();
+                if (GUIEnabled && (storage == null || storage.Count == 0))
+                {
+                    ScreenMessages.PostScreenMessage("Sequencer Storage module is required (add probe core).", 3, ScreenMessageStyle.UPPER_CENTER);
+                    GUIEnabled = false;
+                    return;
+                }
             }
 
             if (SequencerWindowPos.x == 0 && SequencerWindowPos.y == 0)
