@@ -1220,6 +1220,23 @@ namespace IRSequencer.Gui
                     return;
                 }
             }
+            else if (HighLogic.LoadedSceneIsEditor)
+            {
+                if (EditorLogic.fetch != null) 
+                {
+                    var s = EditorLogic.fetch.ship;
+                    if (s != null)
+                    {
+                        var storagePart = s.Parts.Find (p => p.FindModuleImplementing<SequencerStorage> () != null);
+                        if (GUIEnabled && storagePart == null) 
+                        {
+                            ScreenMessages.PostScreenMessage("Sequencer Storage module is required (add probe core).", 3, ScreenMessageStyle.UPPER_CENTER);
+                            GUIEnabled = false;
+                            return;
+                        }
+                    }
+                }
+            }
 
             if (SequencerWindowPos.x == 0 && SequencerWindowPos.y == 0)
             {
@@ -1263,6 +1280,43 @@ namespace IRSequencer.Gui
             }
             GUI.color = solidColor;
             DrawTooltip();
+
+            if(HighLogic.LoadedSceneIsEditor)
+            {
+                var mousePos = new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y);
+                bool lockEditor = GUIEnabled && (SequencerWindowPos.Contains(mousePos) || (guiSequenceEditor && SequencerEditorWindowPos.Contains(mousePos)));
+
+                EditorLock(lockEditor);
+            }
+        }
+
+        /// <summary>
+        ///     Applies or removes the lock
+        /// </summary>
+        /// <param name="apply">Which way are we going</param>
+        internal void EditorLock(Boolean apply)
+        {
+            //only do this lock in the editor - no point elsewhere
+            if (HighLogic.LoadedSceneIsEditor && apply)
+            {
+                //only add a new lock if there isnt already one there
+                if (InputLockManager.GetControlLock("IRSGUILockOfEditor") != ControlTypes.EDITOR_LOCK)
+                {
+                    Logger.Log(String.Format("[GUI] AddingLock-{0}", "IRSGUILockOfEditor"), Logger.Level.Debug);
+
+                    InputLockManager.SetControlLock(ControlTypes.EDITOR_LOCK, "IRGUILockOfEditor");
+                }
+            }
+            //Otherwise make sure the lock is removed
+            else
+            {
+                //Only try and remove it if there was one there in the first place
+                if (InputLockManager.GetControlLock("IRSGUILockOfEditor") == ControlTypes.EDITOR_LOCK)
+                {
+                    Logger.Log(String.Format("[GUI] Removing-{0}", "IRSGUILockOfEditor"), Logger.Level.Debug);
+                    InputLockManager.RemoveControlLock("IRSGUILockOfEditor");
+                }
+            }
         }
     }
 
