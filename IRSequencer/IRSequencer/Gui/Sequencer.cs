@@ -702,6 +702,9 @@ namespace IRSequencer.Gui
             if (openSequence == null)
                 return;
 
+            if (IRWrapper.IRController.ServoGroups == null)
+                return;
+
             GUI.color = opaqueColor;
 
             string tmpString;
