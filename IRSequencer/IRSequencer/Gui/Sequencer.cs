@@ -853,7 +853,7 @@ namespace IRSequencer.Gui
                                 servo.Highlight = highlight;
 
                                 string focusedControlName = GUI.GetNameOfFocusedControl ();
-                                string thisControlName = "Position " + servo.UID;
+                                string thisControlName = "SequencerPosition " + servo.UID;
 
                                 tmpString = DrawTextField (thisControlName, avCommand.position, "{0:#0.0#}", 
                                     textFieldStyle, GUILayout.Width (40), GUILayout.Height (22));
@@ -869,7 +869,7 @@ namespace IRSequencer.Gui
 
                                 GUILayout.Label ("@", nameStyle, GUILayout.Height (22));
 
-                                thisControlName = "Speed " + servo.UID;
+                                thisControlName = "SequencerSpeed " + servo.UID;
 
                                 tmpString = DrawTextField (thisControlName, avCommand.speedMultiplier, "{0:#0.0#}", 
                                     textFieldStyle, GUILayout.Width (30), GUILayout.Height (22));
@@ -1258,7 +1258,7 @@ namespace IRSequencer.Gui
                 + ", lastValue = " + lastFocusedTextFieldValue 
                 + ", temp.Length = " + temp.Length, Logger.Level.Debug);
 
-            var servoFields = new string[2] {"Position", "Speed"};
+            var servoFields = new string[2] {"SequencerPosition", "SequencerSpeed"};
 
             var pos = Array.IndexOf (servoFields, temp [0]);
 
