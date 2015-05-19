@@ -58,6 +58,8 @@ namespace IRSequencer.Gui
         //index wher to insert new commands
         private int insertCommandIndex = -1;
 
+        private string lastFocusedControlName = "";
+        private string lastFocusedTextFieldValue = "";
 
         protected static Rect SequencerWindowPos;
         protected static Rect SequencerEditorWindowPos;
@@ -697,6 +699,41 @@ namespace IRSequencer.Gui
             GUI.DragWindow();
         }
 
+        /// <summary>
+        /// Draws the text field and returns its value
+        /// </summary>
+        /// <returns>Entered value</returns>
+        /// <param name="controlName">Control name.</param>
+        /// <param name="value">Value.</param>
+        /// <param name="format">Format.</param>
+        /// <param name="style">Style.</param>
+        /// <param name="width">Width.</param>
+        /// <param name="height">Height.</param>
+        private string DrawTextField(string controlName, float value, string format, GUIStyle style, GUILayoutOption width, GUILayoutOption height)
+        {
+            string focusedControlName = GUI.GetNameOfFocusedControl ();
+
+            if (controlName == focusedControlName 
+                && lastFocusedTextFieldValue == "")
+            {
+                lastFocusedTextFieldValue = string.Format (format, value);
+            }
+
+            string tmp = (controlName == focusedControlName) 
+                ? lastFocusedTextFieldValue 
+                : string.Format (format, value);
+
+            GUI.SetNextControlName(controlName);
+            tmp = GUILayout.TextField(tmp, style, width, height);
+
+            if (controlName == focusedControlName 
+                && focusedControlName == lastFocusedControlName)
+                lastFocusedTextFieldValue = tmp;
+
+            return tmp;
+        }
+
+
         private void SequencerEditorWindow(int windowID)
         {
             if (openSequence == null)
@@ -815,16 +852,35 @@ namespace IRSequencer.Gui
                                 bool highlight = last.Contains(pos);
                                 servo.Highlight = highlight;
 
-                                tmpString = GUILayout.TextField (string.Format ("{0:#0.0#}", avCommand.position), textFieldStyle, GUILayout.Width (40), GUILayout.Height (22));
-                                if (float.TryParse (tmpString, out tmpValue)) 
+                                string focusedControlName = GUI.GetNameOfFocusedControl ();
+                                string thisControlName = "Position " + servo.UID;
+
+                                tmpString = DrawTextField (thisControlName, avCommand.position, "{0:#0.0#}", 
+                                    textFieldStyle, GUILayout.Width (40), GUILayout.Height (22));
+
+                                var valueChanged = (thisControlName == focusedControlName && 
+                                    (Event.current.keyCode == KeyCode.Return || Event.current.keyCode == KeyCode.KeypadEnter));
+
+                                if (float.TryParse (tmpString, out tmpValue) && valueChanged) 
                                 {
                                     avCommand.position = Mathf.Clamp(tmpValue, avCommand.servo.MinPosition, avCommand.servo.MaxPosition);
+                                    lastFocusedTextFieldValue = "";
                                 }
+
                                 GUILayout.Label ("@", nameStyle, GUILayout.Height (22));
-                                tmpString = GUILayout.TextField (string.Format ("{0:#0.0#}", avCommand.speedMultiplier), textFieldStyle, GUILayout.Width (30), GUILayout.Height (22));
-                                if (float.TryParse (tmpString, out tmpValue)) 
+
+                                thisControlName = "Speed " + servo.UID;
+
+                                tmpString = DrawTextField (thisControlName, avCommand.speedMultiplier, "{0:#0.0#}", 
+                                    textFieldStyle, GUILayout.Width (30), GUILayout.Height (22));
+
+                                valueChanged = (thisControlName == focusedControlName && 
+                                    (Event.current.keyCode == KeyCode.Return || Event.current.keyCode == KeyCode.KeypadEnter));
+                                
+                                if (float.TryParse (tmpString, out tmpValue) && valueChanged)
                                 {
                                     avCommand.speedMultiplier = Mathf.Clamp (tmpValue, 0.05f, 1000f);
+                                    lastFocusedTextFieldValue = "";
                                 }
                                 GUI.color = opaqueColor;
                                 GUILayout.EndHorizontal ();
@@ -1195,6 +1251,49 @@ namespace IRSequencer.Gui
             config.save();
         }
 
+        private void ProcessFocusChange()
+        {
+            var temp = lastFocusedControlName.Split (' ');
+            Logger.Log ("[GUI] Focus change, lastName = " + lastFocusedControlName 
+                + ", lastValue = " + lastFocusedTextFieldValue 
+                + ", temp.Length = " + temp.Length, Logger.Level.Debug);
+
+            var servoFields = new string[2] {"Position", "Speed"};
+
+            var pos = Array.IndexOf (servoFields, temp [0]);
+
+            Logger.Log ("availableServoCommands found: " + (availableServoCommands != null), Logger.Level.Debug);
+            Logger.Log ("pos: " + pos, Logger.Level.Debug);
+
+            if (temp.Length == 2 && pos >= 0 && pos < 2)
+            {
+                uint servoUID = 0;
+                if(uint.TryParse(temp[1], out servoUID) && availableServoCommands != null)
+                {
+                    float tmpValue;
+                    var command = availableServoCommands.Find (p => p.servo.UID == servoUID);
+                    Logger.Log ("Command found: " + (command != null), Logger.Level.Debug);
+
+                    if (float.TryParse (lastFocusedTextFieldValue, out tmpValue)) 
+                    {
+                        if (pos == 0 && command != null && command.servo != null)
+                        {
+                            command.position = Mathf.Clamp(tmpValue, command.servo.MinPosition, command.servo.MaxPosition);
+                        }
+                        else if (pos == 1 && command != null && command.servo != null)
+                        {
+                            command.speedMultiplier = Mathf.Clamp(tmpValue, 0.05f, 1000f);
+                        }
+                    }
+
+                }
+            }
+
+            lastFocusedControlName = GUI.GetNameOfFocusedControl();
+            lastFocusedTextFieldValue = "";
+        }
+
+
         private void OnGUI()
         {
             //requires ServoGroups to be parsed
@@ -1259,6 +1358,17 @@ namespace IRSequencer.Gui
             
             if (GUIEnabled && !guiHidden)
             {
+                if (lastFocusedControlName != GUI.GetNameOfFocusedControl())
+                {
+                    ProcessFocusChange ();
+                }
+
+                //this code defocuses the TexFields if you click mouse elsewhere
+                if (GUIUtility.hotControl > 0 && GUIUtility.hotControl != GUIUtility.keyboardControl)
+                {
+                    GUIUtility.keyboardControl = 0;
+                }
+
                 SequencerWindowPos = GUILayout.Window(SequencerWindowID, SequencerWindowPos,
                 SequencerControlWindow,
                 "Servo Sequencer",
@@ -1307,7 +1417,7 @@ namespace IRSequencer.Gui
                 {
                     Logger.Log(String.Format("[GUI] AddingLock-{0}", "IRSGUILockOfEditor"), Logger.Level.Debug);
 
-                    InputLockManager.SetControlLock(ControlTypes.EDITOR_LOCK, "IRGUILockOfEditor");
+                    InputLockManager.SetControlLock(ControlTypes.EDITOR_LOCK, "IRSGUILockOfEditor");
                 }
             }
             //Otherwise make sure the lock is removed
