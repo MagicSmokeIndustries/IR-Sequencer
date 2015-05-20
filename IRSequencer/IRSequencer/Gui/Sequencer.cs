@@ -460,6 +460,7 @@ namespace IRSequencer.Gui
             GameEvents.onVesselChange.Add(OnVesselChange);
             GameEvents.onVesselWasModified.Add(OnVesselWasModified);
             GameEvents.onEditorShipModified.Add(OnEditorShipModified);
+            GameEvents.onEditorRestart.Add(OnEditorRestart);
 
             GameEvents.onGameSceneLoadRequested.Remove(OnGameSceneLoadRequestedForAppLauncher);
 
@@ -469,6 +470,14 @@ namespace IRSequencer.Gui
             }
 
             Logger.Log("[Sequencer] Awake successful", Logger.Level.Debug);
+        }
+
+        private void OnEditorRestart()
+        {
+            GUIEnabled = false;
+            guiSequenceEditor = false;
+            availableServoCommands = null;
+            openSequence = null;
         }
 
         void OnGameSceneLoadRequestedForAppLauncher(GameScenes SceneToLoad)
@@ -524,6 +533,7 @@ namespace IRSequencer.Gui
             GameEvents.onVesselChange.Remove(OnVesselChange);
             GameEvents.onVesselWasModified.Remove(OnVesselWasModified);
             GameEvents.onEditorShipModified.Remove(OnEditorShipModified);
+            GameEvents.onEditorRestart.Remove(OnEditorRestart);
 
             Sequencer.Instance.isReady = false;
             SaveConfigXml();
@@ -829,7 +839,6 @@ namespace IRSequencer.Gui
                                     return;
                                 }
                                
-
                                 if (GUILayout.Button ("Add", buttonStyle, GUILayout.Width (30), GUILayout.Height (22))) 
                                 {
                                     openSequence.Pause ();
