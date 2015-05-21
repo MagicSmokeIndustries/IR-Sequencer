@@ -70,7 +70,10 @@ namespace IRSequencer.Core
 
             if (ag != KSPActionGroup.None)
             {
-                FlightGlobals.ActiveVessel.ActionGroups.ToggleGroup (ag);
+                if (HighLogic.LoadedSceneIsFlight && FlightGlobals.ActiveVessel != null)
+                {
+                    FlightGlobals.ActiveVessel.ActionGroups.ToggleGroup (ag);
+                }
                 isActive = false;
                 isFinished = true;
                 Logger.Log("[Sequencer] Firing ActionGroup = " + ag.ToString(), Logger.Level.Debug);

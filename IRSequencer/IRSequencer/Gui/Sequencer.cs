@@ -1302,7 +1302,6 @@ namespace IRSequencer.Gui
             lastFocusedTextFieldValue = "";
         }
 
-
         private void OnGUI()
         {
             //requires ServoGroups to be parsed
@@ -1320,9 +1319,11 @@ namespace IRSequencer.Gui
                 appLauncherButton.VisibleInScenes = ApplicationLauncher.AppScenes.FLIGHT | ApplicationLauncher.AppScenes.SPH | ApplicationLauncher.AppScenes.VAB;
             }
 
-
             if (HighLogic.LoadedSceneIsFlight)
             {
+                if (FlightGlobals.ActiveVessel == null)
+                    return;
+                
                 var storage = FlightGlobals.ActiveVessel.FindPartModulesImplementing<SequencerStorage>();
                 if (GUIEnabled && (storage == null || storage.Count == 0))
                 {
