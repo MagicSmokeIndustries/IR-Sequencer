@@ -45,6 +45,8 @@ namespace IRSequencer.Gui
         private static GUIStyle playheadStyle;
         private static GUIStyle textFieldStyle;
         private static GUIStyle insertToggleStyle;
+        private static GUIStyle hoverStyle;
+
 
         private static Color solidColor;
         private static Color opaqueColor;
@@ -137,6 +139,17 @@ namespace IRSequencer.Gui
                     {
                         background = TextureLoader.PlayheadBG
                     },
+                };
+
+                hoverStyle = new GUIStyle (GUI.skin.label) 
+                {
+                    hover = 
+                    {
+                        textColor = Color.white,
+                        background = TextureLoader.ToggleBGHover
+                    },
+                    padding = new RectOffset(1, 1, 1, 1),
+                    border = new RectOffset (1, 1, 1, 1)
                 };
 
                 insertToggleStyle = new GUIStyle (GUI.skin.label) 
@@ -828,7 +841,7 @@ namespace IRSequencer.Gui
 
                             foreach (IRWrapper.IServo servo in g.Servos) 
                             {
-                                GUILayout.BeginHorizontal ();
+                                GUILayout.BeginHorizontal (hoverStyle);
                                 GUI.color = solidColor;
 
                                 var avCommand = availableServoCommands.FirstOrDefault(t => t.servo.Equals(servo));
@@ -860,6 +873,12 @@ namespace IRSequencer.Gui
                                 Vector2 pos = Event.current.mousePosition;
                                 bool highlight = last.Contains(pos);
                                 servo.Highlight = highlight;
+
+                                var e = Event.current;
+                                if (e.isMouse && e.clickCount == 2 && last.Contains(e.mousePosition))
+                                {
+                                    avCommand.position = servo.Position;
+                                }
 
                                 string focusedControlName = GUI.GetNameOfFocusedControl ();
                                 string thisControlName = "SequencerPosition " + servo.UID;
@@ -1219,6 +1238,14 @@ namespace IRSequencer.Gui
                 if (playToggle != openSequence.isActive && !openSequence.isFinished)
                 {
                     openSequence.Pause();
+                }
+            }
+
+            if (GUILayout.Button("Step", buttonStyle, GUILayout.Width(100), GUILayout.Height(22)))
+            {
+                if (!openSequence.isLocked)
+                {
+                    openSequence.Step();
                 }
             }
             
