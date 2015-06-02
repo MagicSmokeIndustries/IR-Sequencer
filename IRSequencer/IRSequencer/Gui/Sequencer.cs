@@ -475,7 +475,7 @@ namespace IRSequencer.Gui
             GameEvents.onEditorShipModified.Add(OnEditorShipModified);
             GameEvents.onEditorRestart.Add(OnEditorRestart);
 
-            GameEvents.onGameSceneLoadRequested.Remove(OnGameSceneLoadRequestedForAppLauncher);
+            GameEvents.onGameSceneLoadRequested.Add(OnGameSceneLoadRequestedForAppLauncher);
 
             if (ApplicationLauncher.Ready && appLauncherButton == null)
             {
