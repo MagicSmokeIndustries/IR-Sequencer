@@ -81,6 +81,8 @@ namespace IRSequencer.Gui
             get { return SequencerInstance; }
         }
 
+        internal List<bool> openGroupsList;
+
         internal List<Sequence> sequences;
 
         internal Sequence openSequence;
@@ -275,6 +277,7 @@ namespace IRSequencer.Gui
                             //we should wait until ActionGroup is executed
                             if(HighLogic.LoadedSceneIsFlight)
                             {
+                                
                                 if (FlightGlobals.ActiveVessel != null)
                                 {
                                     if(FlightGlobals.ActiveVessel.ActionGroups[bc.ag])
@@ -422,6 +425,7 @@ namespace IRSequencer.Gui
         private void OnVesselChange(Vessel v)
         {
             sequences.Clear();
+            openGroupsList = null;
             guiSequenceEditor = false;
             availableServoCommands = null;
             openSequence = null;
@@ -473,6 +477,7 @@ namespace IRSequencer.Gui
             }
             guiSequenceEditor = false;
             availableServoCommands = null;
+            openGroupsList = null;
             openSequence = null;
             
             var storagePart = ship.Parts.Find(p => p.FindModuleImplementing<SequencerStorage>() != null);
@@ -516,6 +521,7 @@ namespace IRSequencer.Gui
             GUIEnabled = false;
             guiSequenceEditor = false;
             availableServoCommands = null;
+            openGroupsList = null;
             openSequence = null;
         }
 
@@ -835,23 +841,36 @@ namespace IRSequencer.Gui
                     }
                 }
 
+                if (openGroupsList == null)
+                {
+                    openGroupsList = new List<bool> ();
+                }
+                if(openGroupsList.Count != IRWrapper.IRController.ServoGroups.Count)
+                {
+                    openGroupsList.Clear ();
+                    for (int i=0; i<IRWrapper.IRController.ServoGroups.Count; i++)
+                    {
+                        openGroupsList.Add (IRWrapper.IRController.ServoGroups [i].Expanded);
+                    }
+                }
+
                 servoListScroll = GUILayout.BeginScrollView (servoListScroll, false, false, maxHeight);
                 for (int i = 0; i < IRWrapper.IRController.ServoGroups.Count; i++) 
                 {
                     IRWrapper.IControlGroup g = IRWrapper.IRController.ServoGroups [i];
-
+                   
                     if (g.Servos.Any ()) 
                     {
                         GUILayout.BeginHorizontal ();
 
                         GUI.color = solidColor;
-                        if (g.Expanded) 
+                        if (openGroupsList [i]) 
                         {
-                            g.Expanded = !GUILayout.Button (TextureLoader.CollapseIcon, buttonStyle, GUILayout.Width (20), GUILayout.Height (22));
+                            openGroupsList [i] = !GUILayout.Button (TextureLoader.CollapseIcon, buttonStyle, GUILayout.Width (20), GUILayout.Height (22));
                         } 
                         else 
                         {
-                            g.Expanded = GUILayout.Button (TextureLoader.ExpandIcon, buttonStyle, GUILayout.Width (20), GUILayout.Height (22));
+                            openGroupsList [i] = GUILayout.Button (TextureLoader.ExpandIcon, buttonStyle, GUILayout.Width (20), GUILayout.Height (22));
                         }
                         
                         nameStyle.fontStyle = FontStyle.Bold;
@@ -860,7 +879,7 @@ namespace IRSequencer.Gui
                         GUI.color = opaqueColor;
                         GUILayout.EndHorizontal ();
 
-                        if (g.Expanded) 
+                        if (openGroupsList [i]) 
                         {
                             GUILayout.BeginHorizontal (GUILayout.Height (5));
                             GUILayout.EndHorizontal ();
