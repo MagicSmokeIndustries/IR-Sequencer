@@ -19,7 +19,7 @@ namespace IRSequencer.Gui
     /// So far relies on ControlGUI to parse all servos to ServoGroups, 
     /// until we move this functinality elsewhere
     /// </summary>
-    [KSPAddon(KSPAddon.Startup.Flight, false)]
+    [KSPAddon(KSPAddon.Startup.EveryScene, false)]
     public class Sequencer : MonoBehaviour
     {
         public bool guiHidden = false;
@@ -27,6 +27,7 @@ namespace IRSequencer.Gui
         public bool GUIEnabled = false;
         public bool guiSequenceEditor = false;
         private bool isReady = false;
+        private bool firstUpdate = true;
 
         public bool isEnabled = true;
         internal static bool GUISetupDone = false;
@@ -44,6 +45,8 @@ namespace IRSequencer.Gui
         private static GUIStyle playheadStyle;
         private static GUIStyle textFieldStyle;
         private static GUIStyle insertToggleStyle;
+        private static GUIStyle hoverStyle;
+
 
         private static Color solidColor;
         private static Color opaqueColor;
@@ -57,6 +60,8 @@ namespace IRSequencer.Gui
         //index wher to insert new commands
         private int insertCommandIndex = -1;
 
+        private string lastFocusedControlName = "";
+        private string lastFocusedTextFieldValue = "";
 
         protected static Rect SequencerWindowPos;
         protected static Rect SequencerEditorWindowPos;
@@ -75,6 +80,8 @@ namespace IRSequencer.Gui
         {
             get { return SequencerInstance; }
         }
+
+        internal List<bool> openGroupsList;
 
         internal List<Sequence> sequences;
 
@@ -134,6 +141,17 @@ namespace IRSequencer.Gui
                     {
                         background = TextureLoader.PlayheadBG
                     },
+                };
+
+                hoverStyle = new GUIStyle (GUI.skin.label) 
+                {
+                    hover = 
+                    {
+                        textColor = Color.white,
+                        background = TextureLoader.ToggleBGHover
+                    },
+                    padding = new RectOffset(1, 1, 1, 1),
+                    border = new RectOffset (1, 1, 1, 1)
                 };
 
                 insertToggleStyle = new GUIStyle (GUI.skin.label) 
@@ -204,6 +222,22 @@ namespace IRSequencer.Gui
             }
         }
 
+        public void Update()
+        {
+            if(firstUpdate)
+            {
+                try
+                {
+                    IRWrapper.InitWrapper();
+                }
+                catch (Exception e)
+                {
+                    Logger.Log("[Sequencer] Exception while initialising API " + e.Message, Logger.Level.Debug);
+                }
+                firstUpdate = false;
+            }
+        }
+
         public void FixedUpdate()
         {
             //no need to run for non-robotic crafts or if disabled
@@ -238,7 +272,32 @@ namespace IRSequencer.Gui
                 {
                     if (bc.wait)
                     {
-                        if (bc.waitTime > 0f)
+                        if (bc.ag != KSPActionGroup.None)
+                        {
+                            //we should wait until ActionGroup is executed
+                            if(HighLogic.LoadedSceneIsFlight)
+                            {
+                                
+                                if (FlightGlobals.ActiveVessel != null)
+                                {
+                                    if(FlightGlobals.ActiveVessel.ActionGroups[bc.ag])
+                                    {
+                                        Logger.Log("[Sequencer] ActionGroup wait finished, AG fired was " + bc.ag.ToString(), Logger.Level.Debug);
+                                        bc.isFinished = true;
+                                        bc.isActive = false;
+                                        activeCount--;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                Logger.Log("[Sequencer] ActionGroup wait auto-finished in Editor", Logger.Level.Debug);
+                                bc.isFinished = true;
+                                bc.isActive = false;
+                                activeCount--;
+                            }
+                        }
+                        else if (bc.waitTime > 0f)
                         {
                             if(UnityEngine.Time.time >= bc.timeStarted + bc.waitTime)
                             {
@@ -302,7 +361,9 @@ namespace IRSequencer.Gui
                     if (activeWaitCount > 0)
                     {
                         //we have some waits in the queue
-                        if (sq.commands[sq.lastCommandIndex].wait && sq.commands[sq.lastCommandIndex].waitTime == 0f)
+                        if (sq.commands[sq.lastCommandIndex].wait && 
+                            sq.commands[sq.lastCommandIndex].waitTime == 0f && 
+                            sq.commands[sq.lastCommandIndex].ag == KSPActionGroup.None)
                         {
                             //the last executed command is to wait for all other commands to finish
                             //if it is the only active command we are waiting for - mark it as Finished and proceeed.
@@ -364,6 +425,7 @@ namespace IRSequencer.Gui
         private void OnVesselChange(Vessel v)
         {
             sequences.Clear();
+            openGroupsList = null;
             guiSequenceEditor = false;
             availableServoCommands = null;
             openSequence = null;
@@ -407,6 +469,25 @@ namespace IRSequencer.Gui
             }
         }
 
+        private void OnEditorShipModified(ShipConstruct ship)
+        {
+            if(!IRWrapper.APIReady)
+            {
+                IRWrapper.InitWrapper();
+            }
+            guiSequenceEditor = false;
+            availableServoCommands = null;
+            openGroupsList = null;
+            openSequence = null;
+            
+            var storagePart = ship.Parts.Find(p => p.FindModuleImplementing<SequencerStorage>() != null);
+            if (storagePart != null)
+            {
+                var storageModule = storagePart.FindModuleImplementing<SequencerStorage>();
+                storageModule.LoadSequences();
+            }
+        }
+
         private void Awake()
         {
             LoadConfigXml();
@@ -422,8 +503,10 @@ namespace IRSequencer.Gui
 
             GameEvents.onVesselChange.Add(OnVesselChange);
             GameEvents.onVesselWasModified.Add(OnVesselWasModified);
+            GameEvents.onEditorShipModified.Add(OnEditorShipModified);
+            GameEvents.onEditorRestart.Add(OnEditorRestart);
 
-            GameEvents.onGameSceneLoadRequested.Remove(OnGameSceneLoadRequestedForAppLauncher);
+            GameEvents.onGameSceneLoadRequested.Add(OnGameSceneLoadRequestedForAppLauncher);
 
             if (ApplicationLauncher.Ready && appLauncherButton == null)
             {
@@ -431,6 +514,15 @@ namespace IRSequencer.Gui
             }
 
             Logger.Log("[Sequencer] Awake successful", Logger.Level.Debug);
+        }
+
+        private void OnEditorRestart()
+        {
+            GUIEnabled = false;
+            guiSequenceEditor = false;
+            availableServoCommands = null;
+            openGroupsList = null;
+            openSequence = null;
         }
 
         void OnGameSceneLoadRequestedForAppLauncher(GameScenes SceneToLoad)
@@ -449,7 +541,7 @@ namespace IRSequencer.Gui
                 Logger.Log("[Sequencer] Exception while initialising API " + e.Message, Logger.Level.Debug);
             }
 
-            Logger.Log("[Sequencer] Start successful", Logger.Level.Debug);
+            Logger.Log("[Sequencer] OnStart successful", Logger.Level.Debug);
         }
 
         private void OnShowUI()
@@ -485,7 +577,9 @@ namespace IRSequencer.Gui
 
             GameEvents.onVesselChange.Remove(OnVesselChange);
             GameEvents.onVesselWasModified.Remove(OnVesselWasModified);
-            
+            GameEvents.onEditorShipModified.Remove(OnEditorShipModified);
+            GameEvents.onEditorRestart.Remove(OnEditorRestart);
+
             Sequencer.Instance.isReady = false;
             SaveConfigXml();
 
@@ -660,9 +754,47 @@ namespace IRSequencer.Gui
             GUI.DragWindow();
         }
 
+        /// <summary>
+        /// Draws the text field and returns its value
+        /// </summary>
+        /// <returns>Entered value</returns>
+        /// <param name="controlName">Control name.</param>
+        /// <param name="value">Value.</param>
+        /// <param name="format">Format.</param>
+        /// <param name="style">Style.</param>
+        /// <param name="width">Width.</param>
+        /// <param name="height">Height.</param>
+        private string DrawTextField(string controlName, float value, string format, GUIStyle style, GUILayoutOption width, GUILayoutOption height)
+        {
+            string focusedControlName = GUI.GetNameOfFocusedControl ();
+
+            if (controlName == focusedControlName 
+                && lastFocusedTextFieldValue == "")
+            {
+                lastFocusedTextFieldValue = string.Format (format, value);
+            }
+
+            string tmp = (controlName == focusedControlName) 
+                ? lastFocusedTextFieldValue 
+                : string.Format (format, value);
+
+            GUI.SetNextControlName(controlName);
+            tmp = GUILayout.TextField(tmp, style, width, height);
+
+            if (controlName == focusedControlName 
+                && focusedControlName == lastFocusedControlName)
+                lastFocusedTextFieldValue = tmp;
+
+            return tmp;
+        }
+
+
         private void SequencerEditorWindow(int windowID)
         {
             if (openSequence == null)
+                return;
+
+            if (IRWrapper.IRController.ServoGroups == null)
                 return;
 
             GUI.color = opaqueColor;
@@ -709,23 +841,36 @@ namespace IRSequencer.Gui
                     }
                 }
 
+                if (openGroupsList == null)
+                {
+                    openGroupsList = new List<bool> ();
+                }
+                if(openGroupsList.Count != IRWrapper.IRController.ServoGroups.Count)
+                {
+                    openGroupsList.Clear ();
+                    for (int i=0; i<IRWrapper.IRController.ServoGroups.Count; i++)
+                    {
+                        openGroupsList.Add (IRWrapper.IRController.ServoGroups [i].Expanded);
+                    }
+                }
+
                 servoListScroll = GUILayout.BeginScrollView (servoListScroll, false, false, maxHeight);
                 for (int i = 0; i < IRWrapper.IRController.ServoGroups.Count; i++) 
                 {
                     IRWrapper.IControlGroup g = IRWrapper.IRController.ServoGroups [i];
-
+                   
                     if (g.Servos.Any ()) 
                     {
                         GUILayout.BeginHorizontal ();
 
                         GUI.color = solidColor;
-                        if (g.Expanded) 
+                        if (openGroupsList [i]) 
                         {
-                            g.Expanded = !GUILayout.Button (TextureLoader.CollapseIcon, buttonStyle, GUILayout.Width (20), GUILayout.Height (22));
+                            openGroupsList [i] = !GUILayout.Button (TextureLoader.CollapseIcon, buttonStyle, GUILayout.Width (20), GUILayout.Height (22));
                         } 
                         else 
                         {
-                            g.Expanded = GUILayout.Button (TextureLoader.ExpandIcon, buttonStyle, GUILayout.Width (20), GUILayout.Height (22));
+                            openGroupsList [i] = GUILayout.Button (TextureLoader.ExpandIcon, buttonStyle, GUILayout.Width (20), GUILayout.Height (22));
                         }
                         
                         nameStyle.fontStyle = FontStyle.Bold;
@@ -734,14 +879,14 @@ namespace IRSequencer.Gui
                         GUI.color = opaqueColor;
                         GUILayout.EndHorizontal ();
 
-                        if (g.Expanded) 
+                        if (openGroupsList [i]) 
                         {
                             GUILayout.BeginHorizontal (GUILayout.Height (5));
                             GUILayout.EndHorizontal ();
 
                             foreach (IRWrapper.IServo servo in g.Servos) 
                             {
-                                GUILayout.BeginHorizontal ();
+                                GUILayout.BeginHorizontal (hoverStyle);
                                 GUI.color = solidColor;
 
                                 var avCommand = availableServoCommands.FirstOrDefault(t => t.servo.Equals(servo));
@@ -752,7 +897,6 @@ namespace IRSequencer.Gui
                                     return;
                                 }
                                
-
                                 if (GUILayout.Button ("Add", buttonStyle, GUILayout.Width (30), GUILayout.Height (22))) 
                                 {
                                     openSequence.Pause ();
@@ -775,16 +919,41 @@ namespace IRSequencer.Gui
                                 bool highlight = last.Contains(pos);
                                 servo.Highlight = highlight;
 
-                                tmpString = GUILayout.TextField (string.Format ("{0:#0.0#}", avCommand.position), textFieldStyle, GUILayout.Width (40), GUILayout.Height (22));
-                                if (float.TryParse (tmpString, out tmpValue)) 
+                                var e = Event.current;
+                                if (e.isMouse && e.clickCount == 2 && last.Contains(e.mousePosition))
+                                {
+                                    avCommand.position = servo.Position;
+                                }
+
+                                string focusedControlName = GUI.GetNameOfFocusedControl ();
+                                string thisControlName = "SequencerPosition " + servo.UID;
+
+                                tmpString = DrawTextField (thisControlName, avCommand.position, "{0:#0.0#}", 
+                                    textFieldStyle, GUILayout.Width (40), GUILayout.Height (22));
+
+                                var valueChanged = (thisControlName == focusedControlName && 
+                                    (Event.current.keyCode == KeyCode.Return || Event.current.keyCode == KeyCode.KeypadEnter));
+
+                                if (float.TryParse (tmpString, out tmpValue) && valueChanged) 
                                 {
                                     avCommand.position = Mathf.Clamp(tmpValue, avCommand.servo.MinPosition, avCommand.servo.MaxPosition);
+                                    lastFocusedTextFieldValue = "";
                                 }
+
                                 GUILayout.Label ("@", nameStyle, GUILayout.Height (22));
-                                tmpString = GUILayout.TextField (string.Format ("{0:#0.0#}", avCommand.speedMultiplier), textFieldStyle, GUILayout.Width (30), GUILayout.Height (22));
-                                if (float.TryParse (tmpString, out tmpValue)) 
+
+                                thisControlName = "SequencerSpeed " + servo.UID;
+
+                                tmpString = DrawTextField (thisControlName, avCommand.speedMultiplier, "{0:#0.0#}", 
+                                    textFieldStyle, GUILayout.Width (30), GUILayout.Height (22));
+
+                                valueChanged = (thisControlName == focusedControlName && 
+                                    (Event.current.keyCode == KeyCode.Return || Event.current.keyCode == KeyCode.KeypadEnter));
+                                
+                                if (float.TryParse (tmpString, out tmpValue) && valueChanged)
                                 {
                                     avCommand.speedMultiplier = Mathf.Clamp (tmpValue, 0.05f, 1000f);
+                                    lastFocusedTextFieldValue = "";
                                 }
                                 GUI.color = opaqueColor;
                                 GUILayout.EndHorizontal ();
@@ -809,7 +978,7 @@ namespace IRSequencer.Gui
                     
                     GUILayout.BeginHorizontal ();
                     GUI.color = solidColor;
-                    if (GUILayout.Button ("Add", buttonStyle, GUILayout.Width (30), GUILayout.Height (22))) 
+                    if (GUILayout.Button ("Add Toggle", buttonStyle, GUILayout.Width (70), GUILayout.Height (22))) 
                     {
                         openSequence.Pause ();
                         openSequence.Reset ();
@@ -826,7 +995,25 @@ namespace IRSequencer.Gui
                             openSequence.commands.Insert (insertCommandIndex + 1, newCommand);
                         }
                     }
-                    GUILayout.Label ("Toggle AG: " + a.ToString(), GUILayout.ExpandWidth (true), GUILayout.Height (22));
+                    if (GUILayout.Button("Wait For", buttonStyle, GUILayout.Width(40), GUILayout.Height(22)))
+                    {
+                        openSequence.Pause();
+                        openSequence.Reset();
+
+                        var newCommand = new BasicCommand(a);
+                        newCommand.wait = true;
+
+                        if (insertCommandIndex + 1 == openSequence.commands.Count)
+                        {
+                            openSequence.commands.Add(newCommand);
+                            insertCommandIndex++;
+                        }
+                        else
+                        {
+                            openSequence.commands.Insert(insertCommandIndex + 1, newCommand);
+                        }
+                    }
+                    GUILayout.Label (a.ToString(), GUILayout.ExpandWidth (true), GUILayout.Height (22));
                     GUI.color = opaqueColor;
                     GUILayout.EndHorizontal ();
                 }
@@ -1028,6 +1215,10 @@ namespace IRSequencer.Gui
                             labelText += ", " + bc.gotoCounter + " more times.";
                         }
                     }
+                    else if (bc.ag != KSPActionGroup.None)
+                    {
+                        labelText = (bc.isActive ? "Waiting" : "Wait") + " for AG: " + bc.ag.ToString();
+                    }
                     else
                         labelText = (bc.isActive ? "Waiting" : "Wait") + " for Moves";
                 }
@@ -1116,6 +1307,14 @@ namespace IRSequencer.Gui
                     openSequence.Pause();
                 }
             }
+
+            if (GUILayout.Button("Step", buttonStyle, GUILayout.Width(100), GUILayout.Height(22)))
+            {
+                if (!openSequence.isLocked)
+                {
+                    openSequence.Step();
+                }
+            }
             
             if (GUILayout.Button("Stop", buttonStyle, GUILayout.Width(100), GUILayout.Height(22)))
             {
@@ -1155,6 +1354,48 @@ namespace IRSequencer.Gui
             config.save();
         }
 
+        private void ProcessFocusChange()
+        {
+            var temp = lastFocusedControlName.Split (' ');
+            Logger.Log ("[GUI] Focus change, lastName = " + lastFocusedControlName 
+                + ", lastValue = " + lastFocusedTextFieldValue 
+                + ", temp.Length = " + temp.Length, Logger.Level.Debug);
+
+            var servoFields = new string[2] {"SequencerPosition", "SequencerSpeed"};
+
+            var pos = Array.IndexOf (servoFields, temp [0]);
+
+            Logger.Log ("availableServoCommands found: " + (availableServoCommands != null), Logger.Level.Debug);
+            Logger.Log ("pos: " + pos, Logger.Level.Debug);
+
+            if (temp.Length == 2 && pos >= 0 && pos < 2)
+            {
+                uint servoUID = 0;
+                if(uint.TryParse(temp[1], out servoUID) && availableServoCommands != null)
+                {
+                    float tmpValue;
+                    var command = availableServoCommands.Find (p => p.servo.UID == servoUID);
+                    Logger.Log ("Command found: " + (command != null), Logger.Level.Debug);
+
+                    if (float.TryParse (lastFocusedTextFieldValue, out tmpValue)) 
+                    {
+                        if (pos == 0 && command != null && command.servo != null)
+                        {
+                            command.position = Mathf.Clamp(tmpValue, command.servo.MinPosition, command.servo.MaxPosition);
+                        }
+                        else if (pos == 1 && command != null && command.servo != null)
+                        {
+                            command.speedMultiplier = Mathf.Clamp(tmpValue, 0.05f, 1000f);
+                        }
+                    }
+
+                }
+            }
+
+            lastFocusedControlName = GUI.GetNameOfFocusedControl();
+            lastFocusedTextFieldValue = "";
+        }
+
         private void OnGUI()
         {
             //requires ServoGroups to be parsed
@@ -1169,15 +1410,38 @@ namespace IRSequencer.Gui
 
             if (appLauncherButton != null)
             {
-                appLauncherButton.VisibleInScenes = ApplicationLauncher.AppScenes.FLIGHT;
+                appLauncherButton.VisibleInScenes = ApplicationLauncher.AppScenes.FLIGHT | ApplicationLauncher.AppScenes.SPH | ApplicationLauncher.AppScenes.VAB;
             }
-            
-            var storage = FlightGlobals.ActiveVessel.FindPartModulesImplementing<SequencerStorage>();
-            if (GUIEnabled && (storage == null || storage.Count == 0) )
+
+            if (HighLogic.LoadedSceneIsFlight)
             {
-                ScreenMessages.PostScreenMessage("Sequencer Storage module is required (add probe core).", 3, ScreenMessageStyle.UPPER_CENTER);
-                GUIEnabled = false;
-                return;
+                if (FlightGlobals.ActiveVessel == null)
+                    return;
+                
+                var storage = FlightGlobals.ActiveVessel.FindPartModulesImplementing<SequencerStorage>();
+                if (GUIEnabled && (storage == null || storage.Count == 0))
+                {
+                    ScreenMessages.PostScreenMessage("Sequencer Storage module is required (add probe core).", 3, ScreenMessageStyle.UPPER_CENTER);
+                    GUIEnabled = false;
+                    return;
+                }
+            }
+            else if (HighLogic.LoadedSceneIsEditor)
+            {
+                if (EditorLogic.fetch != null) 
+                {
+                    var s = EditorLogic.fetch.ship;
+                    if (s != null)
+                    {
+                        var storagePart = s.Parts.Find (p => p.FindModuleImplementing<SequencerStorage> () != null);
+                        if (GUIEnabled && storagePart == null) 
+                        {
+                            ScreenMessages.PostScreenMessage("Sequencer Storage module is required (add probe core).", 3, ScreenMessageStyle.UPPER_CENTER);
+                            GUIEnabled = false;
+                            return;
+                        }
+                    }
+                }
             }
 
             if (SequencerWindowPos.x == 0 && SequencerWindowPos.y == 0)
@@ -1198,6 +1462,17 @@ namespace IRSequencer.Gui
             
             if (GUIEnabled && !guiHidden)
             {
+                if (lastFocusedControlName != GUI.GetNameOfFocusedControl())
+                {
+                    ProcessFocusChange ();
+                }
+
+                //this code defocuses the TexFields if you click mouse elsewhere
+                if (GUIUtility.hotControl > 0 && GUIUtility.hotControl != GUIUtility.keyboardControl)
+                {
+                    GUIUtility.keyboardControl = 0;
+                }
+
                 SequencerWindowPos = GUILayout.Window(SequencerWindowID, SequencerWindowPos,
                 SequencerControlWindow,
                 "Servo Sequencer",
@@ -1222,6 +1497,43 @@ namespace IRSequencer.Gui
             }
             GUI.color = solidColor;
             DrawTooltip();
+
+            if(HighLogic.LoadedSceneIsEditor)
+            {
+                var mousePos = new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y);
+                bool lockEditor = GUIEnabled && (SequencerWindowPos.Contains(mousePos) || (guiSequenceEditor && SequencerEditorWindowPos.Contains(mousePos)));
+
+                EditorLock(lockEditor);
+            }
+        }
+
+        /// <summary>
+        ///     Applies or removes the lock
+        /// </summary>
+        /// <param name="apply">Which way are we going</param>
+        internal void EditorLock(Boolean apply)
+        {
+            //only do this lock in the editor - no point elsewhere
+            if (HighLogic.LoadedSceneIsEditor && apply)
+            {
+                //only add a new lock if there isnt already one there
+                if (InputLockManager.GetControlLock("IRSGUILockOfEditor") != ControlTypes.EDITOR_LOCK)
+                {
+                    Logger.Log(String.Format("[GUI] AddingLock-{0}", "IRSGUILockOfEditor"), Logger.Level.Debug);
+
+                    InputLockManager.SetControlLock(ControlTypes.EDITOR_LOCK, "IRSGUILockOfEditor");
+                }
+            }
+            //Otherwise make sure the lock is removed
+            else
+            {
+                //Only try and remove it if there was one there in the first place
+                if (InputLockManager.GetControlLock("IRSGUILockOfEditor") == ControlTypes.EDITOR_LOCK)
+                {
+                    Logger.Log(String.Format("[GUI] Removing-{0}", "IRSGUILockOfEditor"), Logger.Level.Debug);
+                    InputLockManager.RemoveControlLock("IRSGUILockOfEditor");
+                }
+            }
         }
     }
 
