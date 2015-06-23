@@ -81,6 +81,8 @@ namespace IRSequencer.Gui
             get { return SequencerInstance; }
         }
 
+        internal List<bool> openGroupsList;
+
         internal List<Sequence> sequences;
 
         internal Sequence openSequence;
@@ -270,7 +272,32 @@ namespace IRSequencer.Gui
                 {
                     if (bc.wait)
                     {
-                        if (bc.waitTime > 0f)
+                        if (bc.ag != KSPActionGroup.None)
+                        {
+                            //we should wait until ActionGroup is executed
+                            if(HighLogic.LoadedSceneIsFlight)
+                            {
+                                
+                                if (FlightGlobals.ActiveVessel != null)
+                                {
+                                    if(FlightGlobals.ActiveVessel.ActionGroups[bc.ag])
+                                    {
+                                        Logger.Log("[Sequencer] ActionGroup wait finished, AG fired was " + bc.ag.ToString(), Logger.Level.Debug);
+                                        bc.isFinished = true;
+                                        bc.isActive = false;
+                                        activeCount--;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                Logger.Log("[Sequencer] ActionGroup wait auto-finished in Editor", Logger.Level.Debug);
+                                bc.isFinished = true;
+                                bc.isActive = false;
+                                activeCount--;
+                            }
+                        }
+                        else if (bc.waitTime > 0f)
                         {
                             if(UnityEngine.Time.time >= bc.timeStarted + bc.waitTime)
                             {
@@ -334,7 +361,9 @@ namespace IRSequencer.Gui
                     if (activeWaitCount > 0)
                     {
                         //we have some waits in the queue
-                        if (sq.commands[sq.lastCommandIndex].wait && sq.commands[sq.lastCommandIndex].waitTime == 0f)
+                        if (sq.commands[sq.lastCommandIndex].wait && 
+                            sq.commands[sq.lastCommandIndex].waitTime == 0f && 
+                            sq.commands[sq.lastCommandIndex].ag == KSPActionGroup.None)
                         {
                             //the last executed command is to wait for all other commands to finish
                             //if it is the only active command we are waiting for - mark it as Finished and proceeed.
@@ -396,6 +425,7 @@ namespace IRSequencer.Gui
         private void OnVesselChange(Vessel v)
         {
             sequences.Clear();
+            openGroupsList = null;
             guiSequenceEditor = false;
             availableServoCommands = null;
             openSequence = null;
@@ -447,6 +477,7 @@ namespace IRSequencer.Gui
             }
             guiSequenceEditor = false;
             availableServoCommands = null;
+            openGroupsList = null;
             openSequence = null;
             
             var storagePart = ship.Parts.Find(p => p.FindModuleImplementing<SequencerStorage>() != null);
@@ -490,6 +521,7 @@ namespace IRSequencer.Gui
             GUIEnabled = false;
             guiSequenceEditor = false;
             availableServoCommands = null;
+            openGroupsList = null;
             openSequence = null;
         }
 
@@ -809,23 +841,36 @@ namespace IRSequencer.Gui
                     }
                 }
 
+                if (openGroupsList == null)
+                {
+                    openGroupsList = new List<bool> ();
+                }
+                if(openGroupsList.Count != IRWrapper.IRController.ServoGroups.Count)
+                {
+                    openGroupsList.Clear ();
+                    for (int i=0; i<IRWrapper.IRController.ServoGroups.Count; i++)
+                    {
+                        openGroupsList.Add (IRWrapper.IRController.ServoGroups [i].Expanded);
+                    }
+                }
+
                 servoListScroll = GUILayout.BeginScrollView (servoListScroll, false, false, maxHeight);
                 for (int i = 0; i < IRWrapper.IRController.ServoGroups.Count; i++) 
                 {
                     IRWrapper.IControlGroup g = IRWrapper.IRController.ServoGroups [i];
-
+                   
                     if (g.Servos.Any ()) 
                     {
                         GUILayout.BeginHorizontal ();
 
                         GUI.color = solidColor;
-                        if (g.Expanded) 
+                        if (openGroupsList [i]) 
                         {
-                            g.Expanded = !GUILayout.Button (TextureLoader.CollapseIcon, buttonStyle, GUILayout.Width (20), GUILayout.Height (22));
+                            openGroupsList [i] = !GUILayout.Button (TextureLoader.CollapseIcon, buttonStyle, GUILayout.Width (20), GUILayout.Height (22));
                         } 
                         else 
                         {
-                            g.Expanded = GUILayout.Button (TextureLoader.ExpandIcon, buttonStyle, GUILayout.Width (20), GUILayout.Height (22));
+                            openGroupsList [i] = GUILayout.Button (TextureLoader.ExpandIcon, buttonStyle, GUILayout.Width (20), GUILayout.Height (22));
                         }
                         
                         nameStyle.fontStyle = FontStyle.Bold;
@@ -834,7 +879,7 @@ namespace IRSequencer.Gui
                         GUI.color = opaqueColor;
                         GUILayout.EndHorizontal ();
 
-                        if (g.Expanded) 
+                        if (openGroupsList [i]) 
                         {
                             GUILayout.BeginHorizontal (GUILayout.Height (5));
                             GUILayout.EndHorizontal ();
@@ -933,7 +978,7 @@ namespace IRSequencer.Gui
                     
                     GUILayout.BeginHorizontal ();
                     GUI.color = solidColor;
-                    if (GUILayout.Button ("Add", buttonStyle, GUILayout.Width (30), GUILayout.Height (22))) 
+                    if (GUILayout.Button ("Add Toggle", buttonStyle, GUILayout.Width (70), GUILayout.Height (22))) 
                     {
                         openSequence.Pause ();
                         openSequence.Reset ();
@@ -950,7 +995,25 @@ namespace IRSequencer.Gui
                             openSequence.commands.Insert (insertCommandIndex + 1, newCommand);
                         }
                     }
-                    GUILayout.Label ("Toggle AG: " + a.ToString(), GUILayout.ExpandWidth (true), GUILayout.Height (22));
+                    if (GUILayout.Button("Wait For", buttonStyle, GUILayout.Width(40), GUILayout.Height(22)))
+                    {
+                        openSequence.Pause();
+                        openSequence.Reset();
+
+                        var newCommand = new BasicCommand(a);
+                        newCommand.wait = true;
+
+                        if (insertCommandIndex + 1 == openSequence.commands.Count)
+                        {
+                            openSequence.commands.Add(newCommand);
+                            insertCommandIndex++;
+                        }
+                        else
+                        {
+                            openSequence.commands.Insert(insertCommandIndex + 1, newCommand);
+                        }
+                    }
+                    GUILayout.Label (a.ToString(), GUILayout.ExpandWidth (true), GUILayout.Height (22));
                     GUI.color = opaqueColor;
                     GUILayout.EndHorizontal ();
                 }
@@ -1151,6 +1214,10 @@ namespace IRSequencer.Gui
                         {
                             labelText += ", " + bc.gotoCounter + " more times.";
                         }
+                    }
+                    else if (bc.ag != KSPActionGroup.None)
+                    {
+                        labelText = (bc.isActive ? "Waiting" : "Wait") + " for AG: " + bc.ag.ToString();
                     }
                     else
                         labelText = (bc.isActive ? "Waiting" : "Wait") + " for Moves";
