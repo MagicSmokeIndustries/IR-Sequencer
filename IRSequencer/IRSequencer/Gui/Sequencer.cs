@@ -12,16 +12,27 @@ using IRSequencer.Module;
 
 namespace IRSequencer.Gui
 {
+    [KSPAddon(KSPAddon.Startup.Flight, false)]
+    public class SequencerFlight : Sequencer
+    {
+        public override string AddonName { get { return this.name; } }
+    }
+
+    [KSPAddon(KSPAddon.Startup.EditorAny, false)]
+    public class SequencerEditor : Sequencer
+    {
+        public override string AddonName { get { return this.name; } }
+    }
+
     /// <summary>
     /// Class for creating and editing command queue for vessel's Infernal Robotic servos
-    /// Only used in flight
     /// 
-    /// So far relies on ControlGUI to parse all servos to ServoGroups, 
-    /// until we move this functinality elsewhere
+    /// So far relies on IR to parse all servos to ServoGroups
     /// </summary>
-    [KSPAddon(KSPAddon.Startup.EveryScene, false)]
     public class Sequencer : MonoBehaviour
     {
+        public virtual String AddonName { get; set; }
+
         public bool guiHidden = false;
 
         public bool GUIEnabled = false;
@@ -203,23 +214,35 @@ namespace IRSequencer.Gui
 
         private void AddAppLauncherButton()
         {
-            if (appLauncherButton == null)
+            if (appLauncherButton == null && ApplicationLauncher.Ready && ApplicationLauncher.Instance != null)
             {
                 try
                 {
                     var texture = new Texture2D(32, 32, TextureFormat.RGBA32, false);
                     TextureLoader.LoadImageFromFile(texture, "icon_seq_button.png");
-                    
+                    Logger.Log(string.Format("[GUI Icon Loaded]"), Logger.Level.Debug);
+                    if (ApplicationLauncher.Instance == null)
+                    {
+                        Logger.Log(string.Format("[GUI AddAppLauncher.Instance is null, PANIC!"), Logger.Level.Fatal);
+                        return;
+                    }
                     appLauncherButton = ApplicationLauncher.Instance.AddModApplication(delegate { GUIEnabled = true; },
-                        delegate { GUIEnabled = false; }, null, null, null, null,
+                        delegate { GUIEnabled = false; }, DummyCallback, DummyCallback, DummyCallback, DummyCallback,
                         ApplicationLauncher.AppScenes.FLIGHT, texture);
 
                 }
                 catch (Exception ex)
                 {
                     Logger.Log(string.Format("[GUI AddAppLauncherButton Exception, {0}", ex.Message), Logger.Level.Fatal);
+                    DestroyAppLauncherButton ();
+                    appLauncherButton = null;
                 }
             }
+        }
+
+        public void DummyCallback()
+        {
+            
         }
 
         public void Update()
@@ -508,12 +531,12 @@ namespace IRSequencer.Gui
 
             GameEvents.onGameSceneLoadRequested.Add(OnGameSceneLoadRequestedForAppLauncher);
 
-            if (ApplicationLauncher.Ready && appLauncherButton == null)
+            if (ApplicationLauncher.Ready && appLauncherButton == null && ApplicationLauncher.Instance != null)
             {
                 AddAppLauncherButton();
             }
 
-            Logger.Log("[Sequencer] Awake successful", Logger.Level.Debug);
+            Logger.Log("[Sequencer] Awake successful, Addon: " + AddonName, Logger.Level.Debug);
         }
 
         private void OnEditorRestart()
