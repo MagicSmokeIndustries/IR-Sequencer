@@ -58,6 +58,8 @@ namespace IRSequencer.Gui
         private static GUIStyle insertToggleStyle;
         private static GUIStyle hoverStyle;
 
+        private float lastKeyPressedTime = 0f;
+        private const float keyCooldown = 0.2f;
 
         private static Color solidColor;
         private static Color opaqueColor;
@@ -261,13 +263,14 @@ namespace IRSequencer.Gui
                 var s = sequences [i];
                 if(KeyPressed(s.keyShortcut))
                 {
-                    if(s.isActive)
+                    if (Time.time > lastKeyPressedTime  + keyCooldown) 
                     {
-                        s.Pause ();
-                    }
-                    else
-                    {
-                        s.Start ();
+                        if (s.isActive) 
+                            s.Pause ();
+                        else
+                            s.Start ();
+                        
+                        lastKeyPressedTime = Time.time;
                     }
                 }
             }
@@ -721,7 +724,7 @@ namespace IRSequencer.Gui
 
                 sq.name = GUILayout.TextField(sq.name, textFieldStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
 
-                sq.keyShortcut = GUILayout.TextField(sq.keyShortcut, textFieldStyle, GUILayout.Width(30), GUILayout.Height(22));
+                sq.keyShortcut = GUILayout.TextField(sq.keyShortcut, textFieldStyle, GUILayout.Width(25), GUILayout.Height(22));
 
                 bool playToggle = GUILayout.Toggle(sq.isActive, 
                     sq.isActive ? new GUIContent(TextureLoader.PauseIcon, "Pause") : new GUIContent(TextureLoader.PlayIcon, "Play"), 
