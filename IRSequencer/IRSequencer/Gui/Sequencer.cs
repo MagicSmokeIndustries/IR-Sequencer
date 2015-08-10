@@ -227,7 +227,7 @@ namespace IRSequencer.Gui
                         return;
                     }
                     appLauncherButton = ApplicationLauncher.Instance.AddModApplication(delegate { GUIEnabled = true; },
-                        delegate { GUIEnabled = false; }, DummyCallback, DummyCallback, DummyCallback, DummyCallback,
+                        delegate { GUIEnabled = false; }, null, null, null, null,
                         ApplicationLauncher.AppScenes.FLIGHT, texture);
 
                 }
@@ -240,9 +240,37 @@ namespace IRSequencer.Gui
             }
         }
 
-        public void DummyCallback()
+        protected bool KeyPressed(string key)
         {
+            return (key != "" && InputLockManager.IsUnlocked(ControlTypes.LINEAR) && Input.GetKey(key));
+        }
+
+        protected bool KeyUnPressed(string key)
+        {
+            return (key != "" && InputLockManager.IsUnlocked(ControlTypes.LINEAR) && Input.GetKeyUp(key));
+        }
+
+        protected void CheckInputs()
+        {
+            //do checks
+            if (sequences == null)
+                return;
             
+            for(int i=0; i<sequences.Count; i++)
+            {
+                var s = sequences [i];
+                if(KeyPressed(s.keyShortcut))
+                {
+                    if(s.isActive)
+                    {
+                        s.Pause ();
+                    }
+                    else
+                    {
+                        s.Start ();
+                    }
+                }
+            }
         }
 
         public void Update()
@@ -259,6 +287,8 @@ namespace IRSequencer.Gui
                 }
                 firstUpdate = false;
             }
+
+            CheckInputs ();
         }
 
         public void FixedUpdate()
@@ -274,6 +304,7 @@ namespace IRSequencer.Gui
                 sequences.ForEach (((Sequence s) => s.isLocked = false));
                 return;
             }
+
             foreach (Sequence sq in activeSequences)
             {
                 if (sq.commands == null) continue;
@@ -690,6 +721,8 @@ namespace IRSequencer.Gui
 
                 sq.name = GUILayout.TextField(sq.name, textFieldStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
 
+                sq.keyShortcut = GUILayout.TextField(sq.keyShortcut, textFieldStyle, GUILayout.Width(30), GUILayout.Height(22));
+
                 bool playToggle = GUILayout.Toggle(sq.isActive, 
                     sq.isActive ? new GUIContent(TextureLoader.PauseIcon, "Pause") : new GUIContent(TextureLoader.PlayIcon, "Play"), 
                     buttonStyle, GUILayout.Width(22), GUILayout.Height(22));
@@ -881,7 +914,10 @@ namespace IRSequencer.Gui
                 for (int i = 0; i < IRWrapper.IRController.ServoGroups.Count; i++) 
                 {
                     IRWrapper.IControlGroup g = IRWrapper.IRController.ServoGroups [i];
-                   
+
+                    if (HighLogic.LoadedSceneIsFlight && FlightGlobals.ActiveVessel != g.Vessel)
+                        continue;
+                    
                     if (g.Servos.Any ()) 
                     {
                         GUILayout.BeginHorizontal ();
