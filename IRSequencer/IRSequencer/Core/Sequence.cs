@@ -13,6 +13,7 @@ namespace IRSequencer.Core
         public bool isWaiting = false; 
         public bool isLocked = false; //sequence is Locked if any of the servos in its commands list are busy
         public string name = "";
+        public string keyShortcut = "";
 
         public bool IsPaused { 
             get 
@@ -137,6 +138,54 @@ namespace IRSequencer.Core
             Logger.Log("[Sequencer] Sequence Start finished, lastCommandIndex = " + lastCommandIndex, Logger.Level.Debug);
             //else we are either finished, or most likely waiting for commands to finish.
         }
+
+        public void Step()
+        {
+            Logger.Log("[Sequencer] Sequence next step", Logger.Level.Debug);
+
+            if (commands == null) return;
+
+            if (isLocked)
+            {
+                Logger.Log ("[Sequencer] Cannot step sequence " + name + " as it is Locked", Logger.Level.Debug);
+                return;
+            }
+
+            //find first unfinished command
+            lastCommandIndex = commands.FindIndex(s => s.isFinished == false);
+            Logger.Log("[Sequencer] First unfinished Index = " + lastCommandIndex, Logger.Level.Debug);
+
+            if (lastCommandIndex == -1)
+            {
+                //there are no unfinished commands, loop if needed or SetFinished and exit
+                if(isLooped)
+                {
+                    Reset();
+                    lastCommandIndex = 0;
+                }
+                else
+                {
+                    SetFinished();
+                    return;
+                }
+            }
+
+            if (lastCommandIndex < commands.Count)
+            {
+                //execute one command and mark it as finished immidiately.
+                commands[lastCommandIndex].Execute();
+                commands [lastCommandIndex].isActive = false;
+                commands [lastCommandIndex].isFinished = true;
+                lastCommandIndex++;
+                isWaiting = true;
+                isActive = false;
+                Logger.Log("[Sequencer] Sequence is waiting for next step, lastCommandIndex = " + lastCommandIndex, Logger.Level.Debug);
+            }
+
+            Logger.Log("[Sequencer] Sequence Step finished, lastCommandIndex = " + lastCommandIndex, Logger.Level.Debug);
+            //else we are either finished, or most likely waiting for commands to finish.
+        }
+
         public void Pause()
         {
             if (commands == null) return;
@@ -190,7 +239,8 @@ namespace IRSequencer.Core
 
         public string Serialize()
         {
-            var serializedSequence = name.Replace('<',' ').Replace('>',' ').Replace('|',' ') + "|" + isLooped + "<";
+            var serializedSequence = name.Replace('<',' ').Replace('>',' ').Replace('|',' ') + "|" 
+                                     + isLooped + "|" + keyShortcut.Replace ("<", "").Replace (">", "").Replace ("|", "") + "<";
 
             if (commands == null)
                 return serializedSequence + ">";

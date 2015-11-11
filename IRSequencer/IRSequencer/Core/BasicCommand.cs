@@ -68,19 +68,20 @@ namespace IRSequencer.Core
             isActive = true;
             timeStarted = UnityEngine.Time.time;
 
-            if (ag != KSPActionGroup.None)
-            {
-                FlightGlobals.ActiveVessel.ActionGroups.ToggleGroup (ag);
-                isActive = false;
-                isFinished = true;
-                Logger.Log("[Sequencer] Firing ActionGroup = " + ag.ToString(), Logger.Level.Debug);
-                return;
-            }
-
             if (wait)
             {
                 //wait commands are dealt with separately in FixedUpdate
                 //all we had to do is mark it as Active and set Timestamp, as we did above
+            }
+            else if (ag != KSPActionGroup.None)
+            {
+                if (HighLogic.LoadedSceneIsFlight && FlightGlobals.ActiveVessel != null)
+                {
+                    FlightGlobals.ActiveVessel.ActionGroups.ToggleGroup (ag);
+                }
+                isActive = false;
+                isFinished = true;
+                Logger.Log("[Sequencer] Firing ActionGroup = " + ag.ToString(), Logger.Level.Debug);
             }
             else
             {
