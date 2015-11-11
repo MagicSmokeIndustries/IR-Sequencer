@@ -12,16 +12,27 @@ using IRSequencer.Module;
 
 namespace IRSequencer.Gui
 {
+    [KSPAddon(KSPAddon.Startup.Flight, false)]
+    public class SequencerFlight : Sequencer
+    {
+        public override string AddonName { get { return this.name; } }
+    }
+
+    [KSPAddon(KSPAddon.Startup.EditorAny, false)]
+    public class SequencerEditor : Sequencer
+    {
+        public override string AddonName { get { return this.name; } }
+    }
+
     /// <summary>
     /// Class for creating and editing command queue for vessel's Infernal Robotic servos
-    /// Only used in flight
     /// 
-    /// So far relies on ControlGUI to parse all servos to ServoGroups, 
-    /// until we move this functinality elsewhere
+    /// So far relies on IR to parse all servos to ServoGroups
     /// </summary>
-    [KSPAddon(KSPAddon.Startup.EveryScene, false)]
     public class Sequencer : MonoBehaviour
     {
+        public virtual String AddonName { get; set; }
+
         public bool guiHidden = false;
 
         public bool GUIEnabled = false;
@@ -47,6 +58,8 @@ namespace IRSequencer.Gui
         private static GUIStyle insertToggleStyle;
         private static GUIStyle hoverStyle;
 
+        private float lastKeyPressedTime = 0f;
+        private const float keyCooldown = 0.2f;
 
         private static Color solidColor;
         private static Color opaqueColor;
@@ -203,13 +216,18 @@ namespace IRSequencer.Gui
 
         private void AddAppLauncherButton()
         {
-            if (appLauncherButton == null)
+            if (appLauncherButton == null && ApplicationLauncher.Ready && ApplicationLauncher.Instance != null)
             {
                 try
                 {
                     var texture = new Texture2D(32, 32, TextureFormat.RGBA32, false);
                     TextureLoader.LoadImageFromFile(texture, "icon_seq_button.png");
-                    
+                    Logger.Log(string.Format("[GUI Icon Loaded]"), Logger.Level.Debug);
+                    if (ApplicationLauncher.Instance == null)
+                    {
+                        Logger.Log(string.Format("[GUI AddAppLauncher.Instance is null, PANIC!"), Logger.Level.Fatal);
+                        return;
+                    }
                     appLauncherButton = ApplicationLauncher.Instance.AddModApplication(delegate { GUIEnabled = true; },
                         delegate { GUIEnabled = false; }, null, null, null, null,
                         ApplicationLauncher.AppScenes.FLIGHT, texture);
@@ -218,6 +236,42 @@ namespace IRSequencer.Gui
                 catch (Exception ex)
                 {
                     Logger.Log(string.Format("[GUI AddAppLauncherButton Exception, {0}", ex.Message), Logger.Level.Fatal);
+                    DestroyAppLauncherButton ();
+                    appLauncherButton = null;
+                }
+            }
+        }
+
+        protected bool KeyPressed(string key)
+        {
+            return (key != "" && InputLockManager.IsUnlocked(ControlTypes.LINEAR) && Input.GetKey(key));
+        }
+
+        protected bool KeyUnPressed(string key)
+        {
+            return (key != "" && InputLockManager.IsUnlocked(ControlTypes.LINEAR) && Input.GetKeyUp(key));
+        }
+
+        protected void CheckInputs()
+        {
+            //do checks
+            if (sequences == null)
+                return;
+            
+            for(int i=0; i<sequences.Count; i++)
+            {
+                var s = sequences [i];
+                if(KeyPressed(s.keyShortcut))
+                {
+                    if (Time.time > lastKeyPressedTime  + keyCooldown) 
+                    {
+                        if (s.isActive) 
+                            s.Pause ();
+                        else
+                            s.Start ();
+                        
+                        lastKeyPressedTime = Time.time;
+                    }
                 }
             }
         }
@@ -236,6 +290,8 @@ namespace IRSequencer.Gui
                 }
                 firstUpdate = false;
             }
+
+            CheckInputs ();
         }
 
         public void FixedUpdate()
@@ -251,6 +307,7 @@ namespace IRSequencer.Gui
                 sequences.ForEach (((Sequence s) => s.isLocked = false));
                 return;
             }
+
             foreach (Sequence sq in activeSequences)
             {
                 if (sq.commands == null) continue;
@@ -508,12 +565,12 @@ namespace IRSequencer.Gui
 
             GameEvents.onGameSceneLoadRequested.Add(OnGameSceneLoadRequestedForAppLauncher);
 
-            if (ApplicationLauncher.Ready && appLauncherButton == null)
+            if (ApplicationLauncher.Ready && appLauncherButton == null && ApplicationLauncher.Instance != null)
             {
                 AddAppLauncherButton();
             }
 
-            Logger.Log("[Sequencer] Awake successful", Logger.Level.Debug);
+            Logger.Log("[Sequencer] Awake successful, Addon: " + AddonName, Logger.Level.Debug);
         }
 
         private void OnEditorRestart()
@@ -666,6 +723,8 @@ namespace IRSequencer.Gui
                 GUILayout.Label(sequenceStatus, dotStyle, GUILayout.Width(20), GUILayout.Height(22));
 
                 sq.name = GUILayout.TextField(sq.name, textFieldStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
+
+                sq.keyShortcut = GUILayout.TextField(sq.keyShortcut, textFieldStyle, GUILayout.Width(25), GUILayout.Height(22));
 
                 bool playToggle = GUILayout.Toggle(sq.isActive, 
                     sq.isActive ? new GUIContent(TextureLoader.PauseIcon, "Pause") : new GUIContent(TextureLoader.PlayIcon, "Play"), 
@@ -858,7 +917,10 @@ namespace IRSequencer.Gui
                 for (int i = 0; i < IRWrapper.IRController.ServoGroups.Count; i++) 
                 {
                     IRWrapper.IControlGroup g = IRWrapper.IRController.ServoGroups [i];
-                   
+
+                    if (HighLogic.LoadedSceneIsFlight && FlightGlobals.ActiveVessel != g.Vessel)
+                        continue;
+                    
                     if (g.Servos.Any ()) 
                     {
                         GUILayout.BeginHorizontal ();
