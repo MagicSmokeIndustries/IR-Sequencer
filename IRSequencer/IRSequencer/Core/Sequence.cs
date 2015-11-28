@@ -13,6 +13,7 @@ namespace IRSequencer.Core
         public bool isWaiting = false; 
         public bool isLocked = false; //sequence is Locked if any of the servos in its commands list are busy
         public string name = "";
+        public string keyShortcut = "";
 
         public bool IsPaused { 
             get 
@@ -238,7 +239,8 @@ namespace IRSequencer.Core
 
         public string Serialize()
         {
-            var serializedSequence = name.Replace('<',' ').Replace('>',' ').Replace('|',' ') + "|" + isLooped + "<";
+            var serializedSequence = name.Replace('<',' ').Replace('>',' ').Replace('|',' ') + "|" 
+                                     + isLooped + "|" + keyShortcut.Replace ("<", "").Replace (">", "").Replace ("|", "") + "<";
 
             if (commands == null)
                 return serializedSequence + ">";
