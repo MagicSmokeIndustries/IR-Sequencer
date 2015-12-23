@@ -43,9 +43,9 @@ namespace IRSequencer.API
             LogFormatted("IR Version:{0}", IRServoControllerType.Assembly.GetName().Version.ToString());
 
             IRServoMechanismType = AssemblyLoader.loadedAssemblies
-               .Select(a => a.assembly.GetExportedTypes())
-               .SelectMany(t => t)
-               .FirstOrDefault(t => t.FullName == "InfernalRobotics.Control.IMechanism");
+                .Select(a => a.assembly.GetExportedTypes())
+                .SelectMany(t => t)
+                .FirstOrDefault(t => t.FullName == "InfernalRobotics.Control.IMechanism");
 
             if (IRServoMechanismType == null)
             {
@@ -208,6 +208,7 @@ namespace IRSequencer.API
             private readonly object actualControlGroup;
 
             private PropertyInfo nameProperty;
+            private PropertyInfo vesselProperty;
             private PropertyInfo forwardKeyProperty;
             private PropertyInfo expandedProperty;
             private PropertyInfo speedProperty;
@@ -230,6 +231,7 @@ namespace IRSequencer.API
             private void FindProperties()
             {
                 nameProperty = IRControlGroupType.GetProperty("Name");
+                vesselProperty = IRControlGroupType.GetProperty("Vessel");
                 forwardKeyProperty = IRControlGroupType.GetProperty("ForwardKey");
                 reverseKeyProperty = IRControlGroupType.GetProperty("ReverseKey");
                 speedProperty = IRControlGroupType.GetProperty("Speed");
@@ -253,6 +255,11 @@ namespace IRSequencer.API
             {
                 get { return (string)nameProperty.GetValue(actualControlGroup, null); }
                 set { nameProperty.SetValue(actualControlGroup, value, null); }
+            }
+
+            public Vessel Vessel
+            {
+                get { return (Vessel)vesselProperty.GetValue(actualControlGroup, null); }
             }
 
             public string ForwardKey
@@ -322,8 +329,8 @@ namespace IRSequencer.API
             private IList<IServo> ExtractServos(object actualServos)
             {
                 var listToReturn = new List<IServo>();
-                
-                if (actualServos == null)
+
+                if(actualServos == null)
                     return listToReturn;
 
                 try
@@ -425,15 +432,16 @@ namespace IRSequencer.API
 
             private readonly object actualServo;
 
-            public uint UID
-            {
-                get { return (uint)UIDProperty.GetValue(actualServo, null); }
-            }
 
             public string Name
             {
                 get { return (string)nameProperty.GetValue(actualServo, null); }
                 set { nameProperty.SetValue(actualServo, value, null); }
+            }
+
+            public uint UID
+            {
+                get { return (uint)UIDProperty.GetValue(actualServo, null); }
             }
 
             public bool Highlight
@@ -597,6 +605,9 @@ namespace IRSequencer.API
         {
             string Name { get; set; }
 
+            //can only be used in Flight, null checking is mandatory
+            Vessel Vessel { get; }
+
             string ForwardKey { get; set; }
 
             string ReverseKey { get; set; }
@@ -622,9 +633,9 @@ namespace IRSequencer.API
 
         public interface IServo : IEquatable<IServo>
         {
-            uint UID { get; }
-
             string Name { get; set; }
+
+            uint UID { get; }
 
             bool Highlight { set; }
 

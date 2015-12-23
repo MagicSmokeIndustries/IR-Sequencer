@@ -107,7 +107,11 @@ namespace IRSequencer.Module
                         seq.isLooped = false;
                     }
                 }
-                
+                if (t.Length > 2)
+                {
+                    seq.keyShortcut = t[2];
+                }
+
                 var seqCommands = s.Substring(s.IndexOf('<') + 1, s.IndexOf('>') - seqName.Length - 1);
 
                 Logger.Log("TryParseSequence, seqCommands=" + seqCommands, Logger.Level.Debug);
