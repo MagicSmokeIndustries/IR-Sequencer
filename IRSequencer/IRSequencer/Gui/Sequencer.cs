@@ -1047,7 +1047,7 @@ namespace IRSequencer.Gui
                     
                     GUILayout.BeginHorizontal ();
                     GUI.color = solidColor;
-                    if (GUILayout.Button ("Add Toggle", buttonStyle, GUILayout.Width (70), GUILayout.Height (22))) 
+                    if (GUILayout.Button ("Add Toggle", buttonStyle, GUILayout.Width (80), GUILayout.Height (22))) 
                     {
                         openSequence.Pause ();
                         openSequence.Reset ();
@@ -1064,7 +1064,7 @@ namespace IRSequencer.Gui
                             openSequence.commands.Insert (insertCommandIndex + 1, newCommand);
                         }
                     }
-                    if (GUILayout.Button("Wait For", buttonStyle, GUILayout.Width(40), GUILayout.Height(22)))
+                    if (GUILayout.Button("Wait For", buttonStyle, GUILayout.Width(60), GUILayout.Height(22)))
                     {
                         openSequence.Pause();
                         openSequence.Reset();
@@ -1431,15 +1431,12 @@ namespace IRSequencer.Gui
             string tmpString;
             float tmpValue;
 
-            currentDelay = bc.waitTime;
-            currentGotoCounter = bc.gotoCounter;
-            currentGotoIndex = bc.gotoIndex;
-
             GUILayout.BeginVertical();
             GUILayout.BeginHorizontal();
 
             if (bc.waitTime > 0f) 
             {
+                currentDelay = bc.waitTime;
                 GUILayout.Label ("Delay for ", nameStyle, GUILayout.ExpandWidth (true), GUILayout.Height (22));
                 tmpString = GUILayout.TextField (string.Format ("{0:#0.0#}", currentDelay), textFieldStyle, GUILayout.Width (40), GUILayout.Height (22));
                 if (float.TryParse (tmpString, out tmpValue)) 
@@ -1453,12 +1450,16 @@ namespace IRSequencer.Gui
 
             if(bc.gotoIndex != -1)
             {
+                currentGotoCounter = bc.gotoCounter;
+                currentGotoIndex = bc.gotoIndex;
+
                 GUILayout.BeginVertical();
                 GUILayout.BeginHorizontal();
                 GUILayout.Label("Go To Command #", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
                 if (GUILayout.Button ("-", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
                 {
                     currentGotoIndex = Math.Max (currentGotoIndex - 1, 0);
+                    bc.gotoIndex = currentGotoIndex;
                     currentGotoIndexString = (currentGotoIndex+1).ToString ();
                 }
                 currentGotoIndexString = GUILayout.TextField(string.Format("{0:#0}", currentGotoIndexString), textFieldStyle, GUILayout.Width(25), GUILayout.Height(22));
@@ -1472,6 +1473,7 @@ namespace IRSequencer.Gui
                 if (GUILayout.Button ("+", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
                 {
                     currentGotoIndex = Math.Max (Math.Min (currentGotoIndex + 1, openSequence.commands.Count-1), 0);
+                    bc.gotoIndex = currentGotoIndex;
                     currentGotoIndexString = (currentGotoIndex+1).ToString ();
                 }
                 GUILayout.EndHorizontal();
@@ -1480,6 +1482,8 @@ namespace IRSequencer.Gui
                 if (GUILayout.Button ("-", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
                 {
                     currentGotoCounter = Math.Max (currentGotoCounter - 1, -1);
+                    bc.gotoCounter = currentGotoCounter;
+                    bc.gotoCommandCounter = currentGotoCounter;
                 }
 
                 tmpString = GUILayout.TextField(string.Format("{0:#0}", currentGotoCounter), textFieldStyle, GUILayout.Width(25), GUILayout.Height(22));
@@ -1492,6 +1496,8 @@ namespace IRSequencer.Gui
                 if (GUILayout.Button ("+", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
                 {
                     currentGotoCounter = Math.Max (currentGotoCounter + 1, -1);
+                    bc.gotoCounter = currentGotoCounter;
+                    bc.gotoCommandCounter = currentGotoCounter;
                 }
                 GUILayout.EndHorizontal();
                 GUILayout.EndVertical();
