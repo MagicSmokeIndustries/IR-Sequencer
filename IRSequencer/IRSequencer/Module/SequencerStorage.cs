@@ -215,6 +215,19 @@ namespace IRSequencer.Module
             else
                 bc.ag = (KSPActionGroup)temp;
 
+            //Add agX support
+            if (chunks.Length > 8)
+            {
+                temp = -1;
+                if (!int.TryParse(chunks[8], out temp))
+                {
+                    bc = null;
+                    return false;
+                }
+                else
+                    bc.agX = temp;
+            }
+
             Logger.Log("Successfully parsed BasicCommand, bc.gotoIndex = " + bc.gotoIndex + ", bc.ag=" + bc.ag);
 
             return true;

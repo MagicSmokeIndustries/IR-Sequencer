@@ -15,6 +15,7 @@ namespace IRSequencer.Core
         public bool isActive = false;
         public bool isFinished = false;
         public KSPActionGroup ag = KSPActionGroup.None;
+        public int agX = -1;
         public int gotoIndex = -1;
         public int gotoCounter = -1;
         public int gotoCommandCounter = -1;
@@ -43,6 +44,11 @@ namespace IRSequencer.Core
         public BasicCommand(KSPActionGroup g) : this(false)
         {
             ag = g;
+        }
+
+        public BasicCommand(int x) : this(false)
+        {
+            agX = x;
         }
 
         public BasicCommand(int targetIndex, int counter)
@@ -83,7 +89,19 @@ namespace IRSequencer.Core
                 isFinished = true;
                 Logger.Log("[Sequencer] Firing ActionGroup = " + ag.ToString(), Logger.Level.Debug);
             }
-            else
+            else if (agX > -1)
+            {
+                if (HighLogic.LoadedSceneIsFlight && FlightGlobals.ActiveVessel != null 
+                    && ActionGroupsExtendedAPI.Instance != null && ActionGroupsExtendedAPI.Instance.Installed())
+                {
+                    var curState = ActionGroupsExtendedAPI.Instance.GetGroupState(FlightGlobals.ActiveVessel, agX);
+                    ActionGroupsExtendedAPI.Instance.ActivateGroup(FlightGlobals.ActiveVessel, agX, !curState);
+                }
+                isActive = false;
+                isFinished = true;
+                Logger.Log("[Sequencer] Firing ActionGroup = " + ag.ToString(), Logger.Level.Debug);
+            }
+            else if (servo != null)
             {
                 Logger.Log("[Sequencer] Executing command, servoName= " + servo.Name + ", pos=" + position, Logger.Level.Debug);
                 servo.MoveTo(position, speedMultiplier);
@@ -121,7 +139,8 @@ namespace IRSequencer.Core
             }
             serializedCommand += wait + "|" + waitTime + "|";
             serializedCommand += gotoIndex + "|" + gotoCommandCounter + "|";
-            serializedCommand += (int)ag;
+            serializedCommand += (int)ag + "|";
+            serializedCommand += agX;
 
             return serializedCommand;
         }

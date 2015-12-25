@@ -61,3 +61,4 @@ IRSequencer/IRSequencer/obj/Release/IRSequencer.csproj.FileListAbsolute.txt
 *.suo
 
 IRSequencer/IRSequencer/obj/Release/IRSequencer.csproj.FilesWrittenAbsolute.txt
+*.cache
