@@ -1047,7 +1047,7 @@ namespace IRSequencer.Gui
                     
                     GUILayout.BeginHorizontal ();
                     GUI.color = solidColor;
-                    if (GUILayout.Button ("Add Toggle", buttonStyle, GUILayout.Width (70), GUILayout.Height (22))) 
+                    if (GUILayout.Button ("Add Toggle", buttonStyle, GUILayout.Width (80), GUILayout.Height (22))) 
                     {
                         openSequence.Pause ();
                         openSequence.Reset ();
@@ -1064,7 +1064,7 @@ namespace IRSequencer.Gui
                             openSequence.commands.Insert (insertCommandIndex + 1, newCommand);
                         }
                     }
-                    if (GUILayout.Button("Wait For", buttonStyle, GUILayout.Width(40), GUILayout.Height(22)))
+                    if (GUILayout.Button("Wait For", buttonStyle, GUILayout.Width(60), GUILayout.Height(22)))
                     {
                         openSequence.Pause();
                         openSequence.Reset();
@@ -1422,6 +1422,7 @@ namespace IRSequencer.Gui
 
         private void SequencerCommandEditorWindow(int windowID)
         {
+
             if (openSequence == null || selectedBasicCommand == null)
                 return;
 
@@ -1431,21 +1432,18 @@ namespace IRSequencer.Gui
             string tmpString;
             float tmpValue;
 
-            currentDelay = bc.waitTime;
-            currentGotoCounter = bc.gotoCounter;
-            currentGotoIndex = bc.gotoIndex;
-
             GUILayout.BeginVertical();
             GUILayout.BeginHorizontal();
 
             if (bc.waitTime > 0f) 
             {
+                var tempDelay = bc.waitTime;
                 GUILayout.Label ("Delay for ", nameStyle, GUILayout.ExpandWidth (true), GUILayout.Height (22));
-                tmpString = GUILayout.TextField (string.Format ("{0:#0.0#}", currentDelay), textFieldStyle, GUILayout.Width (40), GUILayout.Height (22));
+                tmpString = GUILayout.TextField (string.Format ("{0:#0.0#}", tempDelay), textFieldStyle, GUILayout.Width (40), GUILayout.Height (22));
                 if (float.TryParse (tmpString, out tmpValue)) 
                 {
-                    currentDelay = Mathf.Clamp (tmpValue, 0.001f, 600f);
-                    bc.waitTime = currentDelay;
+                    tempDelay = Mathf.Clamp (tmpValue, 0.001f, 600f);
+                    bc.waitTime = tempDelay;
                 }
                 GUILayout.Label ("s ", nameStyle, GUILayout.Width (18), GUILayout.Height (22));
 
@@ -1453,45 +1451,55 @@ namespace IRSequencer.Gui
 
             if(bc.gotoIndex != -1)
             {
+                var tempGotoCounter = bc.gotoCounter;
+                var tempGotoIndex = bc.gotoIndex;
+                var tempGotoIndexString = (tempGotoIndex+1).ToString ();
+
                 GUILayout.BeginVertical();
                 GUILayout.BeginHorizontal();
                 GUILayout.Label("Go To Command #", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
                 if (GUILayout.Button ("-", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
                 {
-                    currentGotoIndex = Math.Max (currentGotoIndex - 1, 0);
-                    currentGotoIndexString = (currentGotoIndex+1).ToString ();
+                    tempGotoIndex = Math.Max (tempGotoIndex - 1, 0);
+                    bc.gotoIndex = tempGotoIndex;
+                    tempGotoIndexString = (tempGotoIndex+1).ToString ();
                 }
-                currentGotoIndexString = GUILayout.TextField(string.Format("{0:#0}", currentGotoIndexString), textFieldStyle, GUILayout.Width(25), GUILayout.Height(22));
+                tempGotoIndexString = GUILayout.TextField(string.Format("{0:#0}", tempGotoIndexString), textFieldStyle, GUILayout.Width(25), GUILayout.Height(22));
 
-                if (float.TryParse(currentGotoIndexString, out tmpValue))
+                if (float.TryParse(tempGotoIndexString, out tmpValue))
                 {
-                    currentGotoIndex = (int)Mathf.Clamp(tmpValue-1, 0f, openSequence.commands.Count-1);
-                    bc.gotoIndex = currentGotoIndex;
+                    tempGotoIndex = (int)Mathf.Clamp(tmpValue-1, 0f, openSequence.commands.Count-1);
+                    bc.gotoIndex = tempGotoIndex;
                 }
 
                 if (GUILayout.Button ("+", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
                 {
-                    currentGotoIndex = Math.Max (Math.Min (currentGotoIndex + 1, openSequence.commands.Count-1), 0);
-                    currentGotoIndexString = (currentGotoIndex+1).ToString ();
+                    tempGotoIndex = Math.Max (Math.Min (tempGotoIndex + 1, openSequence.commands.Count-1), 0);
+                    bc.gotoIndex = tempGotoIndex;
+                    tempGotoIndexString = (tempGotoIndex+1).ToString ();
                 }
                 GUILayout.EndHorizontal();
                 GUILayout.BeginHorizontal();
                 GUILayout.Label("Repeat (-1 for loop)", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
                 if (GUILayout.Button ("-", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
                 {
-                    currentGotoCounter = Math.Max (currentGotoCounter - 1, -1);
+                    tempGotoCounter = Math.Max (tempGotoCounter - 1, -1);
+                    bc.gotoCounter = tempGotoCounter;
+                    bc.gotoCommandCounter = tempGotoCounter;
                 }
 
-                tmpString = GUILayout.TextField(string.Format("{0:#0}", currentGotoCounter), textFieldStyle, GUILayout.Width(25), GUILayout.Height(22));
+                tmpString = GUILayout.TextField(string.Format("{0:#0}", tempGotoCounter), textFieldStyle, GUILayout.Width(25), GUILayout.Height(22));
                 if (float.TryParse(tmpString, out tmpValue))
                 {
-                    currentGotoCounter = (int)Math.Max(tmpValue, -1);
-                    bc.gotoCounter = currentGotoCounter;
-                    bc.gotoCommandCounter = currentGotoCounter;
+                    tempGotoCounter = (int)Math.Max(tmpValue, -1);
+                    bc.gotoCounter = tempGotoCounter;
+                    bc.gotoCommandCounter = tempGotoCounter;
                 }
                 if (GUILayout.Button ("+", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
                 {
-                    currentGotoCounter = Math.Max (currentGotoCounter + 1, -1);
+                    tempGotoCounter = Math.Max (tempGotoCounter + 1, -1);
+                    bc.gotoCounter = tempGotoCounter;
+                    bc.gotoCommandCounter = tempGotoCounter;
                 }
                 GUILayout.EndHorizontal();
                 GUILayout.EndVertical();
@@ -1514,7 +1522,7 @@ namespace IRSequencer.Gui
                 }
 
                 string focusedControlName = GUI.GetNameOfFocusedControl ();
-                string thisControlName = "SequencerPosition " + bc.servo.UID;
+                string thisControlName = "SequencerPositionCommand " + bc.servo.UID;
 
                 tmpString = DrawTextField (thisControlName, bc.position, "{0:#0.0#}", 
                     textFieldStyle, GUILayout.Width (40), GUILayout.Height (22));
@@ -1530,7 +1538,7 @@ namespace IRSequencer.Gui
 
                 GUILayout.Label ("@", nameStyle, GUILayout.Height (22));
 
-                thisControlName = "SequencerSpeed " + bc.servo.UID;
+                thisControlName = "SequencerSpeedCommand " + bc.servo.UID;
 
                 tmpString = DrawTextField (thisControlName, bc.speedMultiplier, "{0:#0.0#}", 
                     textFieldStyle, GUILayout.Width (30), GUILayout.Height (22));
@@ -1582,14 +1590,14 @@ namespace IRSequencer.Gui
                 + ", lastValue = " + lastFocusedTextFieldValue 
                 + ", temp.Length = " + temp.Length, Logger.Level.Debug);
 
-            var servoFields = new string[2] {"SequencerPosition", "SequencerSpeed"};
+            var servoFields = new string[4] {"SequencerPosition", "SequencerSpeed", "SequencerPositionCommand", "SequencerSpeedCommand"};
 
             var pos = Array.IndexOf (servoFields, temp [0]);
 
             Logger.Log ("availableServoCommands found: " + (availableServoCommands != null), Logger.Level.Debug);
             Logger.Log ("pos: " + pos, Logger.Level.Debug);
 
-            if (temp.Length == 2 && pos >= 0 && pos < 2)
+            if (temp.Length == 2 && pos >= 0 && pos < 4)
             {
                 uint servoUID = 0;
                 if(uint.TryParse(temp[1], out servoUID) && availableServoCommands != null)
@@ -1609,11 +1617,11 @@ namespace IRSequencer.Gui
 
                     if (float.TryParse (lastFocusedTextFieldValue, out tmpValue)) 
                     {
-                        if (pos == 0 && command != null && command.servo != null)
+                        if ((pos == 0 || pos == 2) && command != null && command.servo != null)
                         {
                             command.position = Mathf.Clamp(tmpValue, command.servo.MinPosition, command.servo.MaxPosition);
                         }
-                        else if (pos == 1 && command != null && command.servo != null)
+                        else if ((pos == 1 || pos == 3) && command != null && command.servo != null)
                         {
                             command.speedMultiplier = Mathf.Clamp(tmpValue, 0.05f, 1000f);
                         }
