@@ -360,6 +360,7 @@ namespace IRSequencer.Gui
                                 activeCount--;
                             }
                         }
+                        else if (bc.agX > -1)
                         {
                             //we should wait until ActionGroupExtended is executed
                             if (HighLogic.LoadedSceneIsFlight && ActionGroupsExtendedAPI.Instance.Installed())
@@ -450,6 +451,7 @@ namespace IRSequencer.Gui
                         if (sq.commands[sq.lastCommandIndex].wait && 
                             sq.commands[sq.lastCommandIndex].waitTime == 0f && 
                             sq.commands[sq.lastCommandIndex].ag == KSPActionGroup.None &&
+                            sq.commands[sq.lastCommandIndex].agX == -1)
                         {
                             //the last executed command is to wait for all other commands to finish
                             //if it is the only active command we are waiting for - mark it as Finished and proceeed.
@@ -1368,8 +1370,10 @@ namespace IRSequencer.Gui
                             labelText += ", " + bc.gotoCounter + " more times.";
                         }
                     }
+                    else if (bc.ag != KSPActionGroup.None || bc.agX > -1)
                     {
                         labelText = (bc.isActive ? "Waiting" : "Wait") + " for AG: ";
+                        if (ActionGroupsExtendedAPI.Instance != null && ActionGroupsExtendedAPI.Instance.Installed() && bc.agX > -1)
                             labelText += ActionGroupsExtendedAPI.Instance.GetGroupName(bc.agX);
                         else
                             labelText += bc.ag.ToString();
@@ -1383,6 +1387,7 @@ namespace IRSequencer.Gui
                 {
                     labelText = "Toggle ActionGroup: " + bc.ag.ToString ();
                 }
+                else if (ActionGroupsExtendedAPI.Instance != null && ActionGroupsExtendedAPI.Instance.Installed() && bc.agX > -1)
                 {
                     labelText = "Toggle ActionGroup: " + ActionGroupsExtendedAPI.Instance.GetGroupName(bc.agX);
                 }
