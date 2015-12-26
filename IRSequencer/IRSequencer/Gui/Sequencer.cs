@@ -950,8 +950,8 @@ namespace IRSequencer.Gui
                 {
                     IRWrapper.IControlGroup g = IRWrapper.IRController.ServoGroups [i];
 
-                    if (HighLogic.LoadedSceneIsFlight && FlightGlobals.ActiveVessel != g.Vessel)
-                        continue;
+                    //if (HighLogic.LoadedSceneIsFlight && FlightGlobals.ActiveVessel != g.Vessel)
+                    //    continue;
                     
                     if (g.Servos.Any ()) 
                     {
