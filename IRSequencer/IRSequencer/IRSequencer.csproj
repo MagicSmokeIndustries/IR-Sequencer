@@ -44,6 +44,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="API\ActionGroupsExtendedAPI.cs" />
     <Compile Include="API\IRWrapper.cs" />
     <Compile Include="Extension\ConfigNodeExtension.cs" />
     <Compile Include="Extension\RectExtensions.cs" />
@@ -68,8 +69,5 @@
   <Target Name="AfterBuild">
   </Target>
   -->
-  <ItemGroup>
-    <Folder Include="Module\" />
-    <Folder Include="Core\" />
-  </ItemGroup>
+  <ItemGroup />
 </Project>
