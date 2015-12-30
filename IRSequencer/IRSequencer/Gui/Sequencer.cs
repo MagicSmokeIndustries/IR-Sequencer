@@ -512,6 +512,17 @@ namespace IRSequencer.Gui
 
         private void OnVesselChange(Vessel v)
         {
+            //if the scene was loaded on non-IR Vessel and then IR vessel became focused we might need to re-init the API
+            if (!IRWrapper.APIReady)
+                try
+                {
+                    IRWrapper.InitWrapper();
+                }
+                catch (Exception e)
+                {
+                    Logger.Log("[Sequencer] Exception while initialising API " + e.Message, Logger.Level.Debug);
+                }
+
             sequences.Clear();
             openGroupsList = null;
             guiSequenceEditor = false;
