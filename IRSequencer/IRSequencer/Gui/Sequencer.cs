@@ -1886,6 +1886,34 @@ namespace IRSequencer.Gui
                 }
             }
         }
+
+        #region External Interface
+        //External interface to start/stop sequences by number
+        //Number is as shown in main Sequencer window, 1 at the top and counting up as you go down.
+        //Methods are static to make reflection code in the other mod accessing this easier.
+        //Remember that Lists are Zero-indexed so the first item in the list is at position zero
+        public static void SequenceRun(int i) //Starts a sequence running, from start if sequence has the Finished flag set, otherwise from where the sequence was paused.
+        {
+            if(HighLogic.LoadedSceneIsFlight && Sequencer.Instance.sequences.ElementAt(i-1) != null)
+            {
+                Sequencer.Instance.sequences.ElementAt(i-1).Start();
+            }
+        }
+        public static void SequencePause(int i) //Pauses a running sequence.
+        {
+            if (HighLogic.LoadedSceneIsFlight && Sequencer.Instance.sequences.ElementAt(i-1) != null)
+            {
+                Sequencer.Instance.sequences.ElementAt(i-1).Pause();
+            }
+        }
+        public static void SequenceReset(int i) //Stop a sequence and reset it to the beginning.
+        {
+            if (HighLogic.LoadedSceneIsFlight && Sequencer.Instance.sequences.ElementAt(i-1) != null)
+            {
+                Sequencer.Instance.sequences.ElementAt(i-1).Reset();
+            }
+        }
+        #endregion
     }
 
     
