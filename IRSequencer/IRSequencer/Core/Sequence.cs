@@ -3,6 +3,11 @@ using System.Collections.Generic;
 
 namespace IRSequencer.Core
 {
+    /// <summary>
+    /// Implements a Sequence of BasicCommands. 
+    /// Each Sequence must start and end at a certain SequencerState (could be the same one).
+    /// As Sequence is supposed to operate only for ActiveVessel there is no link to a vessel at this level.
+    /// </summary>
     public class Sequence
     {
         internal List<BasicCommand> commands;
@@ -14,6 +19,9 @@ namespace IRSequencer.Core
         public bool isLocked = false; //sequence is Locked if any of the servos in its commands list are busy
         public string name = "";
         public string keyShortcut = "";
+        public readonly Guid sequenceID;
+
+        public SequencerState startState, endState;
 
         public bool IsPaused { 
             get 
@@ -33,6 +41,12 @@ namespace IRSequencer.Core
         {
             commands = new List<BasicCommand>();
             name = "New Sequence";
+            sequenceID = Guid.NewGuid ();
+        }
+
+        public Sequence(string newID) : this()
+        {
+            sequenceID = new Guid (newID);
         }
 
         public Sequence (BasicCommand b) : this()
