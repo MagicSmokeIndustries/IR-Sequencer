@@ -23,6 +23,8 @@ namespace IRSequencer.Core
 
         public SequencerState startState, endState;
 
+        public bool autoStart = false;
+
         public bool IsPaused { 
             get 
             {
@@ -59,6 +61,8 @@ namespace IRSequencer.Core
             //commands.AddRange(baseSequence.commands);
             baseSequence.commands.ForEach ((BasicCommand bc) => commands.Add (new BasicCommand (bc)));
             name = "Copy of " + baseSequence.name;
+            startState = baseSequence.startState;
+            endState = baseSequence.endState;
         }
 
         public void Resume(int commandIndex)

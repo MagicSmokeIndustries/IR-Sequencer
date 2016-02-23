@@ -506,8 +506,8 @@ namespace IRSequencer.Gui
                 GUILayout.BeginHorizontal();
                 GUI.color = solidColor;
                 GUILayout.Label(sequencers[x].sequencerName, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-
-                if(GUILayout.Button("Add new", buttonStyle, GUILayout.Height(22)))
+                GUILayout.Label(sequencers[x].currentState.stateName, GUILayout.ExpandWidth(true), GUILayout.Height(22));
+                if(GUILayout.Button("Add Sequence", buttonStyle, GUILayout.Height(22)))
                 {
                     sequencers[x].sequences.Add(new Sequence());
                 }

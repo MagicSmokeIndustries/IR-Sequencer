@@ -40,6 +40,8 @@ namespace IRSequencer.Module
         [KSPField(isPersistant = true, guiActive = true, guiActiveEditor = true, guiName = "Seqeuncer Name")]
         public string sequencerName = "New Sequencer";
 
+        const float POSDELTA = 0.001f;
+
         public override void OnAwake()
         {
             sequences = new List<Sequence>();
@@ -394,6 +396,9 @@ namespace IRSequencer.Module
             CheckInputs ();
         }
 
+        /// <summary>
+        /// Main heartbeat loop.
+        /// </summary>
         private void FixedUpdate()
         {
 
@@ -416,14 +421,18 @@ namespace IRSequencer.Module
                 lastSavedUT = Time.time;
             }
 
-
             var activeSequences = sequences.FindAll(s => s.isActive);
 
             if (activeSequences.Count == 0) 
             {
-                //unlock all sequences
+                //unlock all sequences as there are none active
                 sequences.ForEach (((Sequence s) => s.isLocked = false));
-                return;
+            }
+
+            if(activeSequences.Count(s => s.endState != s.startState) == 0)
+            {
+                //the only sequences that run are ones that do not change the state, so we can unlock all sequences
+                sequences.ForEach (((Sequence s) => s.isLocked = false));
             }
 
             foreach (Sequence sq in activeSequences)
@@ -437,6 +446,13 @@ namespace IRSequencer.Module
                 {
                     sequences.FindAll (s => s.commands.Any (c => affectedServos.Contains (c.servo))).ForEach ((Sequence seq) => seq.isLocked = true);
                     //exclude current sequence from Locked List
+                    sq.isLocked = false;
+                }
+
+                //in addition lock all other sequeces that change State
+                if(sq.endState != sq.startState)
+                {
+                    sequences.FindAll (s => s.endState != s.startState).ForEach ((Sequence seq) => seq.isLocked = true);
                     sq.isLocked = false;
                 }
 
@@ -506,7 +522,7 @@ namespace IRSequencer.Module
                             }
                         }
                     }
-                    else if (Math.Abs(bc.servo.Position - bc.position) <= 0.000001)
+                    else if (Math.Abs (bc.servo.Position - bc.position) <= POSDELTA)
                     {
                         Logger.Log("[Sequencer] Command finished, servo = " + bc.servo.Name + ", pos = " + bc.position, Logger.Level.Debug);
                         bc.isFinished = true;
@@ -619,7 +635,68 @@ namespace IRSequencer.Module
                     }
                 }
             }
+
+            //now we need to look through all the sequences and if there are some that are Finished 
+            //we need to change the currentState accordingly and reset the sequence
+            foreach (Sequence sq in sequences)
+            {
+                if(sq.isFinished && sq.endState != null && sq.startState != sq.endState)
+                {
+                    var oldState = currentState;
+                    currentState = sq.endState;
+                    //reset the sequence to the original state
+                    sq.Reset();
+                    Logger.Log ("[ModuleSequencer] Sequence " + sq.name + " finished, changing current state to " + sq.endState.stateName, Logger.Level.Debug);
+
+                    //now we need to process OnStateChange events
+                    OnStateChange(oldState, currentState);
+                }
+            }
         }
+
+        public void OnStateChange(SequencerState oldState, SequencerState newState)
+        {
+            Logger.Log ("[ModuleSequencer] OnStateChange from " + oldState.stateName + "  to " + newState.stateName + " starting.", Logger.Level.Debug);
+
+            foreach (Sequence sq in sequences) 
+            {
+                //first we need to stop/reset all active sequences which startState is not newState
+                if(sq.isActive && sq.startState != null && sq.startState != newState)
+                {
+                    sq.Pause ();
+                    sq.Reset ();
+                    Logger.Log ("[ModuleSequencer] OnStateChange stopping sequence " + sq.name, Logger.Level.Debug);
+                }
+
+                //check for sequences in AutoStart mode and start the ones that should trigger when we enter newState
+                if(!sq.isActive && sq.autoStart && sq.startState != null && sq.startState == newState && !sq.isLocked)
+                {
+                    sq.Start ();
+
+                    Logger.Log ("[ModuleSequencer] OnStateChange starting sequence " + sq.name + " due to AutoStart flag.", Logger.Level.Debug);
+                }
+            }
+
+            Logger.Log ("[ModuleSequencer] OnStateChange from " + oldState.stateName + "  to " + newState.stateName + " complete.", Logger.Level.Debug);
+
+        }
+
+        public override void OnLoad(ConfigNode config)
+        {
+            base.OnLoad (config);
+
+            //LoadData ();
+            //to ensure everything loads properly load data on the next FixedUpdate.
+            loadPending = true;
+        }
+
+        public override void OnSave(ConfigNode node)
+        {
+            base.OnSave(node);
+
+            SaveData ();
+        }
+
 
         public override string GetInfo()
         {
