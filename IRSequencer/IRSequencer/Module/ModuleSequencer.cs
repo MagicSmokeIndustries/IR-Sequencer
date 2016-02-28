@@ -224,6 +224,7 @@ namespace IRSequencer.Module
 
                 var t = seqName.Split('|');
                 seq.name = t[0];
+
                 if (t.Length > 1)
                 {
                     if (!bool.TryParse(t[1], out seq.isLooped))
@@ -231,10 +232,35 @@ namespace IRSequencer.Module
                         seq.isLooped = false;
                     }
                 }
+
                 if (t.Length > 2)
                 {
                     seq.keyShortcut = t[2];
                 }
+
+                if(t.Length > 3)
+                {
+                    if (!bool.TryParse(t[3], out seq.autoStart))
+                    {
+                        seq.autoStart = false;
+                    }
+                }
+                //now find startState and endState by IDs
+                if(t.Length > 5)
+                {
+                    var startStateID = t[4];
+                    var endStateID = t[5];
+
+                    seq.startState = states.Find(st => st.stateID.ToString() == startStateID);
+                    seq.endState = states.Find(st => st.stateID.ToString() == endStateID);
+                }
+
+                //sequencer must have at least one state, so if nothing found, default states to it
+                if(seq.startState == null) 
+                    seq.startState = states[0];
+
+                if(seq.endState == null)
+                    seq.endState = states[0];
 
                 var seqCommands = s.Substring(s.IndexOf('<') + 1, s.IndexOf('>') - seqName.Length - 1);
 

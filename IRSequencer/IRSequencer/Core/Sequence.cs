@@ -258,7 +258,23 @@ namespace IRSequencer.Core
         public string Serialize()
         {
             var serializedSequence = name.Replace('<',' ').Replace('>',' ').Replace('|',' ') + "|" 
-                                     + isLooped + "|" + keyShortcut.Replace ("<", "").Replace (">", "").Replace ("|", "") + "<";
+                + isLooped + "|" + keyShortcut.Replace ("<", "").Replace (">", "").Replace ("|", "") + "|" + autoStart;
+
+            //begin states block
+            if(startState == null || endState == null)
+            {
+                //somehow we got legacy Sequeces to serialize, just post an Error
+                Logger.Log("In Sequencer 1.0 and higher Sequences must have non-empty startState and endState", Logger.Level.Warning);
+
+            }
+            else
+            {
+                serializedSequence += "|" + startState.stateID + "|" + endState.stateID;
+            }
+            //end states block
+
+            //begin commands block;
+            serializedSequence += "<";
 
             if (commands == null)
                 return serializedSequence + ">";
