@@ -546,7 +546,7 @@ namespace IRSequencer.Gui
                 {
                     if (playToggle != sq.isActive)
                     {
-                        sq.Start();
+                        sq.Start(module.currentState);
                     }
                 }
                 else if (!sq.isLocked)
@@ -1349,7 +1349,15 @@ namespace IRSequencer.Gui
             {
                 if (playToggle != openSequence.isActive)
                 {
-                    openSequence.Start();
+                    var currentModule = sequencers.Find (s => s.sequences.Contains (openSequence));
+                    if (currentModule != null)
+                    {
+                        openSequence.Start(currentModule.currentState);
+                    }
+                    else
+                    {
+                        Logger.Log ("Could not find sequencer for openSequence, panic!", Logger.Level.Warning);
+                    }
                 }
             }
             else if (!openSequence.isLocked)

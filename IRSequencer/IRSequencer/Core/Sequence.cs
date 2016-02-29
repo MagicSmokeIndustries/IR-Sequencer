@@ -115,7 +115,7 @@ namespace IRSequencer.Core
             //else we are either finished, or most likely waiting for commands to finish.
         }
 
-        public void Start()
+        public void Start(SequencerState currentState)
         {
             Logger.Log("[Sequencer] Sequence started", Logger.Level.Debug);
 
@@ -124,6 +124,12 @@ namespace IRSequencer.Core
             if (isLocked)
             {
                 Logger.Log ("[Sequencer] Cannot start sequence " + name + " as it is Locked", Logger.Level.Debug);
+                return;
+            }
+
+            if (currentState != startState)
+            {
+                Logger.Log ("[Sequencer] Cannot start sequence " + name + " because its start state is not current state", Logger.Level.Debug);
                 return;
             }
             //if the sequence is marked as Finished - reset it and start anew.

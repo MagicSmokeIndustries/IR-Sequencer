@@ -152,7 +152,11 @@ namespace IRSequencer.Module
                 var defState = new SequencerState ();
                 defState.stateName = "Default";
                 states.Add (defState);
+
+                Logger.Log(string.Format("Failed loading States, creating Default State"), Logger.Level.Debug);
             }
+            else
+                Logger.Log(string.Format("Successfully Loaded {0} States", counter), Logger.Level.Debug);
 
             currentState = states.Find (x => x.stateID.ToString() == lastStateID);
 
@@ -176,7 +180,7 @@ namespace IRSequencer.Module
             }
 
             loadPending = false;
-            Logger.Log(string.Format("Successfully Loaded {0} Sequences", counter), Logger.Level.Debug);
+            Logger.Log(string.Format("Successfully Loaded {0} out of {1} Sequences", counter, chunks.Length), Logger.Level.Debug);
         }
 
         public bool TryParseState(string s, out SequencerState st)
@@ -409,7 +413,7 @@ namespace IRSequencer.Module
                         if (s.isActive) 
                             s.Pause ();
                         else
-                            s.Start ();
+                            s.Start (currentState);
 
                         lastKeyPressedTime = Time.time;
                     }
@@ -433,14 +437,14 @@ namespace IRSequencer.Module
                 return;
 
             //only autosave every second
-            if (Time.time < lastSavedUT + 0.2f)
-                return;
+            //if (Time.time < lastSavedUT + 0.2f)
+            //    return;
 
             if (loadPending)
             {
                 LoadData();
             }
-            else
+            else if (Time.time > lastSavedUT + 0.2f)
             {
                 SaveData();
 
@@ -570,7 +574,7 @@ namespace IRSequencer.Module
                         //need to start from first unfinished command
                         Logger.Log("[Sequencer] Restarting sequence " + sq.name + " from first unfinished command", Logger.Level.Debug);
                         sq.isWaiting = false;
-                        sq.Start();
+                        sq.Start(currentState);
                     }
                     else 
                     { 
@@ -579,7 +583,7 @@ namespace IRSequencer.Module
                         {
                             Logger.Log("[Sequencer] Looping sequence " + sq.name, Logger.Level.Debug);
                             sq.Reset();
-                            sq.Start();
+                            sq.Start(currentState);
                         }
                         else
                         {
@@ -631,7 +635,7 @@ namespace IRSequencer.Module
                                 else
                                 {
                                     Logger.Log("[Sequencer] Restarting sequence " + sq.name + " after Wait command", Logger.Level.Debug);
-                                    sq.Start();
+                                    sq.Start(currentState);
                                 }
                             }
                             else
@@ -694,10 +698,25 @@ namespace IRSequencer.Module
                     Logger.Log ("[ModuleSequencer] OnStateChange stopping sequence " + sq.name, Logger.Level.Debug);
                 }
 
+                //now we need to unlock previously locked sequences
+                var activeSequences = sequences.FindAll(s => s.isActive);
+
+                if (activeSequences.Count == 0) 
+                {
+                    //unlock all sequences as there are none active
+                    sequences.ForEach (((Sequence s) => s.isLocked = false));
+                }
+
+                if(activeSequences.Count(s => s.endState != s.startState) == 0)
+                {
+                    //the only sequences that run are ones that do not change the state, so we can unlock all sequences
+                    sequences.ForEach (((Sequence s) => s.isLocked = false));
+                }
+
                 //check for sequences in AutoStart mode and start the ones that should trigger when we enter newState
                 if(!sq.isActive && sq.autoStart && sq.startState != null && sq.startState == newState && !sq.isLocked)
                 {
-                    sq.Start ();
+                    sq.Start (currentState);
 
                     Logger.Log ("[ModuleSequencer] OnStateChange starting sequence " + sq.name + " due to AutoStart flag.", Logger.Level.Debug);
                 }
