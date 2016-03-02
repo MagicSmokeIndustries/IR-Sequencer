@@ -3,6 +3,11 @@ using System.Collections.Generic;
 
 namespace IRSequencer.Core
 {
+    /// <summary>
+    /// Implements a Sequence of BasicCommands. 
+    /// Each Sequence must start and end at a certain SequencerState (could be the same one).
+    /// As Sequence is supposed to operate only for ActiveVessel there is no link to a vessel at this level.
+    /// </summary>
     public class Sequence
     {
         internal List<BasicCommand> commands;
@@ -14,6 +19,11 @@ namespace IRSequencer.Core
         public bool isLocked = false; //sequence is Locked if any of the servos in its commands list are busy
         public string name = "";
         public string keyShortcut = "";
+        public readonly Guid sequenceID;
+
+        public SequencerState startState, endState;
+
+        public bool autoStart = false;
 
         public bool IsPaused { 
             get 
@@ -33,6 +43,12 @@ namespace IRSequencer.Core
         {
             commands = new List<BasicCommand>();
             name = "New Sequence";
+            sequenceID = Guid.NewGuid ();
+        }
+
+        public Sequence(string newID) : this()
+        {
+            sequenceID = new Guid (newID);
         }
 
         public Sequence (BasicCommand b) : this()
@@ -45,6 +61,8 @@ namespace IRSequencer.Core
             //commands.AddRange(baseSequence.commands);
             baseSequence.commands.ForEach ((BasicCommand bc) => commands.Add (new BasicCommand (bc)));
             name = "Copy of " + baseSequence.name;
+            startState = baseSequence.startState;
+            endState = baseSequence.endState;
         }
 
         public void Resume(int commandIndex)
@@ -97,7 +115,7 @@ namespace IRSequencer.Core
             //else we are either finished, or most likely waiting for commands to finish.
         }
 
-        public void Start()
+        public void Start(SequencerState currentState)
         {
             Logger.Log("[Sequencer] Sequence started", Logger.Level.Debug);
 
@@ -106,6 +124,12 @@ namespace IRSequencer.Core
             if (isLocked)
             {
                 Logger.Log ("[Sequencer] Cannot start sequence " + name + " as it is Locked", Logger.Level.Debug);
+                return;
+            }
+
+            if (currentState != startState)
+            {
+                Logger.Log ("[Sequencer] Cannot start sequence " + name + " because its start state is not current state", Logger.Level.Debug);
                 return;
             }
             //if the sequence is marked as Finished - reset it and start anew.
@@ -240,7 +264,23 @@ namespace IRSequencer.Core
         public string Serialize()
         {
             var serializedSequence = name.Replace('<',' ').Replace('>',' ').Replace('|',' ') + "|" 
-                                     + isLooped + "|" + keyShortcut.Replace ("<", "").Replace (">", "").Replace ("|", "") + "<";
+                + isLooped + "|" + keyShortcut.Replace ("<", "").Replace (">", "").Replace ("|", "") + "|" + autoStart;
+
+            //begin states block
+            if(startState == null || endState == null)
+            {
+                //somehow we got legacy Sequeces to serialize, just post an Error
+                Logger.Log("In Sequencer 1.0 and higher Sequences must have non-empty startState and endState", Logger.Level.Warning);
+
+            }
+            else
+            {
+                serializedSequence += "|" + startState.stateID + "|" + endState.stateID;
+            }
+            //end states block
+
+            //begin commands block;
+            serializedSequence += "<";
 
             if (commands == null)
                 return serializedSequence + ">";
