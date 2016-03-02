@@ -106,6 +106,7 @@ namespace IRSequencer.Gui
         internal int selectedBasicCommandIndex;
         internal SequencerState selectedState = null;
         internal Sequence selectedSequence = null;
+        internal ModuleSequencer selectedSequencer = null;
         private List<BasicCommand> availableServoCommands;
 
         static SequencerGUI()
@@ -523,6 +524,9 @@ namespace IRSequencer.Gui
 
                 sq.name = GUILayout.TextField(sq.name, textFieldStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
 
+                sq.autoStart = GUILayout.Toggle(sq.autoStart, new GUIContent(TextureLoader.AutoStartIcon, "Auto-Start"), 
+                    buttonStyle, GUILayout.Width(22), GUILayout.Height(22));
+
                 if (sq.endState != null)
                 {
                     //GUILayout.Label(" » " + sq.endState.stateName, nameStyle, GUILayout.Width(75), GUILayout.Height(22));
@@ -537,38 +541,54 @@ namespace IRSequencer.Gui
 
                 sq.keyShortcut = GUILayout.TextField(sq.keyShortcut, textFieldStyle, GUILayout.Width(25), GUILayout.Height(22));
 
-                bool playToggle = GUILayout.Toggle(sq.isActive, 
-                    sq.isActive ? new GUIContent(TextureLoader.PauseIcon, "Pause") : new GUIContent(TextureLoader.PlayIcon, "Play"), 
-                    buttonStyle, GUILayout.Width(22), GUILayout.Height(22));
-                SetTooltipText ();
+                if (sq.isLocked || sq.startState != module.currentState)
+                {
 
-                if(playToggle && !sq.isLocked)
-                {
-                    if (playToggle != sq.isActive)
+                    if (GUILayout.Button(new GUIContent(TextureLoader.DisabledPlayIcon, "Controls Disabled"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
                     {
-                        sq.Start(module.currentState);
+                       
                     }
-                }
-                else if (!sq.isLocked)
-                {
-                    if (playToggle != sq.isActive && !sq.isFinished)
-                    {
-                        sq.Pause();
-                    }
-                }
+                    SetTooltipText ();
 
-                if (GUILayout.Button(new GUIContent(TextureLoader.StopIcon, "Stop"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
-                {
-                    if (!sq.isLocked)
-                        sq.Reset();
+                    if (GUILayout.Button(new GUIContent(TextureLoader.DisabledStopIcon, "Controls Disabled"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
+                    {
+                        
+                    }
+                    SetTooltipText ();
                 }
-                SetTooltipText ();
+                else
+                {
+                    bool playToggle = GUILayout.Toggle(sq.isActive, 
+                        sq.isActive ? new GUIContent(TextureLoader.PauseIcon, "Pause") : new GUIContent(TextureLoader.PlayIcon, "Play"), 
+                        buttonStyle, GUILayout.Width(22), GUILayout.Height(22));
+                    SetTooltipText ();
+
+                    if(playToggle && !sq.isLocked)
+                    {
+                        if (playToggle != sq.isActive)
+                        {
+                            sq.Start(module.currentState);
+                        }
+                    }
+                    else if (!sq.isLocked)
+                    {
+                        if (playToggle != sq.isActive && !sq.isFinished)
+                        {
+                            sq.Pause();
+                        }
+                    }
+
+                    if (GUILayout.Button(new GUIContent(TextureLoader.StopIcon, "Stop"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
+                    {
+                        if (!sq.isLocked)
+                            sq.Reset();
+                    }
+                    SetTooltipText ();
+
+                }
 
                 sq.isLooped = GUILayout.Toggle(sq.isLooped, 
                     new GUIContent(sq.isLooped ? TextureLoader.LoopingIcon : TextureLoader.LoopIcon, "Loop"), 
-                    buttonStyle, GUILayout.Width(22), GUILayout.Height(22));
-
-                sq.autoStart = GUILayout.Toggle(sq.autoStart, new GUIContent(TextureLoader.LoopIcon, "Auto-Start"), 
                     buttonStyle, GUILayout.Width(22), GUILayout.Height(22));
 
                 GUILayout.Space(4);
@@ -631,9 +651,31 @@ namespace IRSequencer.Gui
             {
                 GUILayout.BeginHorizontal();
                 GUI.color = solidColor;
-                GUILayout.Label(sequencers[x].sequencerName, GUILayout.ExpandWidth(true), GUILayout.Height(22));
 
-                if(GUILayout.Button("Add State", buttonStyle, GUILayout.Height(22)))
+                if (selectedSequencer == sequencers[x])
+                {
+                    sequencers[x].sequencerName = GUILayout.TextField(sequencers[x].sequencerName, textFieldStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
+                }
+                else
+                {
+                    nameStyle.fontStyle = FontStyle.Bold;
+                    GUILayout.Label(sequencers[x].sequencerName, nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
+                    nameStyle.fontStyle = FontStyle.Normal;
+                }
+
+                bool sequencerEditToggle = (selectedSequencer == sequencers[x]);
+
+                bool seqiencerToggleVal = GUILayout.Toggle(sequencerEditToggle, new GUIContent(TextureLoader.EditIcon, "Edit Name"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22));
+                SetTooltipText();
+
+                if (sequencerEditToggle != seqiencerToggleVal)
+                {
+                    selectedSequencer = Equals (selectedSequencer, sequencers[x]) ? null : sequencers[x];
+                }
+
+                GUILayout.Space (4);
+
+                if(GUILayout.Button("Add State", buttonStyle, GUILayout.Width(75), GUILayout.Height(22)))
                 {
                     var newState = new SequencerState ();
                     newState.stateName = "New State";
@@ -647,6 +689,9 @@ namespace IRSequencer.Gui
                 {
                     var st = sequencers [x].states [s];
 
+                    GUILayout.BeginHorizontal (GUILayout.Height (5));
+                    GUILayout.EndHorizontal ();
+
                     GUILayout.BeginHorizontal();
                     GUI.color = solidColor;
 
@@ -659,14 +704,19 @@ namespace IRSequencer.Gui
                         GUILayout.Label ("<color=silver>-</color>", dotStyle, GUILayout.Width (20), GUILayout.Height (22));
                     }
 
+
                     if (selectedState == st)
                     {
                         st.stateName = GUILayout.TextField(st.stateName, textFieldStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
                     }
                     else
                     {
-                        GUILayout.Label(st.stateName, GUILayout.ExpandWidth(true), GUILayout.Height(22));
+                        nameStyle.fontStyle = FontStyle.Bold;
+                        GUILayout.Label(st.stateName, nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
+                        nameStyle.fontStyle = FontStyle.Normal;
                     }
+
+
 
                     bool stateEditToggle = (selectedState == st);
 
@@ -676,14 +726,6 @@ namespace IRSequencer.Gui
                     if (stateEditToggle != toggleVal)
                     {
                         selectedState = Equals (selectedState, st) ? null : st;
-                    }
-
-                    if(GUILayout.Button("Add Sequence", buttonStyle, GUILayout.Height(22)))
-                    {
-                        var newSeq = new Sequence ();
-                        newSeq.startState = st;
-                        newSeq.endState = st;
-                        sequencers[x].sequences.Add(newSeq);
                     }
 
                     if (sequencers [x].states.Count > 1) 
@@ -700,6 +742,18 @@ namespace IRSequencer.Gui
                             }
                         }
                     }
+
+                    GUILayout.Space (4);
+
+                    if(GUILayout.Button("Add Sequence", buttonStyle, GUILayout.Width(100), GUILayout.Height(22)))
+                    {
+                        var newSeq = new Sequence ();
+                        newSeq.startState = st;
+                        newSeq.endState = st;
+                        sequencers[x].sequences.Add(newSeq);
+                    }
+
+
                     GUI.color = opaqueColor;
                     GUILayout.EndHorizontal();
 
