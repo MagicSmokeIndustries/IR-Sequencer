@@ -28,7 +28,7 @@ namespace IRSequencer.Module
         private float lastKeyPressedTime = 0f;
         private const float keyCooldown = 0.2f;
 
-        private bool loadPending = false;
+        internal bool loadPending = false;
         private float lastSavedUT = 0f;
 
         public SequencerState currentState;
@@ -187,7 +187,7 @@ namespace IRSequencer.Module
         {
             if (s == "" || !s.Contains(":"))
             {
-                Logger.Log("TryParseSequence, invalid format s=" + s, Logger.Level.Debug);
+                Logger.Log("TryParseState, invalid format s=" + s, Logger.Level.Debug);
                 st = null;
                 return false;
             }
@@ -403,6 +403,8 @@ namespace IRSequencer.Module
             if (sequences == null)
                 return;
 
+
+            bool keyTriggered = false;
             for(int i=0; i<sequences.Count; i++)
             {
                 var s = sequences [i];
@@ -415,10 +417,13 @@ namespace IRSequencer.Module
                         else
                             s.Start (currentState);
 
-                        lastKeyPressedTime = Time.time;
+                        keyTriggered = true;
                     }
                 }
             }
+
+            if (keyTriggered)
+                lastKeyPressedTime = Time.time;
         }
 
         public void Update()
@@ -726,22 +731,28 @@ namespace IRSequencer.Module
 
         }
 
-        public override void OnLoad(ConfigNode config)
+        public override void OnLoad(ConfigNode node)
         {
-            base.OnLoad (config);
+            base.OnLoad (node);
 
             //LoadData ();
             //to ensure everything loads properly load data on the next FixedUpdate.
             loadPending = true;
         }
 
-        public override void OnSave(ConfigNode node)
+        /*public override void OnSave(ConfigNode node)
         {
             base.OnSave(node);
 
             SaveData ();
-        }
+        }*/
 
+        public override void OnInitialize ()
+        {
+            base.OnInitialize ();
+
+            loadPending = true;
+        }
 
         public override string GetInfo()
         {
