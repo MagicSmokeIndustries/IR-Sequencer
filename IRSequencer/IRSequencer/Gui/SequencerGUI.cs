@@ -345,7 +345,7 @@ namespace IRSequencer.Gui
             {
                 var seqModule = sequencerParts[i].FindModuleImplementing<ModuleSequencer>();
                 sequencers.Add(seqModule);
-                seqModule.LoadData ();
+                seqModule.loadPending = true;
             }
 
         }
