@@ -25,6 +25,9 @@ namespace IRSequencer.Module
         [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "lastState")]
         public string lastStateID = "";
 
+        [KSPField(isPersistant = true, guiActive = true, guiActiveEditor = true, guiName = "IRS Locked?")]
+        public bool isLocked = false;
+
         private float lastKeyPressedTime = 0f;
         private const float keyCooldown = 0.2f;
 
@@ -399,8 +402,8 @@ namespace IRSequencer.Module
 
         protected void CheckInputs()
         {
-            //do checks
-            if (sequences == null)
+            //do sanity checks and halt if locked
+            if (sequences == null || isLocked)
                 return;
 
 
@@ -431,6 +434,46 @@ namespace IRSequencer.Module
             CheckInputs ();
         }
 
+        //the following 3 functions are here to provide some utility for possible hook-ins from other mods.
+        public void StartSequence(Guid sID)
+        {
+            if (sequences == null)
+                return;
+
+            var s = sequences.Find (sq => sq.sequenceID == sID);
+
+            if (s == null)
+                return;
+
+            s.Start (currentState);
+        }
+
+        public void PauseSequence(Guid sID)
+        {
+            if (sequences == null)
+                return;
+
+            var s = sequences.Find (sq => sq.sequenceID == sID);
+
+            if (s == null)
+                return;
+
+            s.Pause ();
+        }
+
+        public void ResetSequence(Guid sID)
+        {
+            if (sequences == null)
+                return;
+
+            var s = sequences.Find (sq => sq.sequenceID == sID);
+
+            if (s == null)
+                return;
+
+            s.Reset ();
+        }
+
         /// <summary>
         /// Main heartbeat loop.
         /// </summary>
@@ -455,6 +498,10 @@ namespace IRSequencer.Module
 
                 lastSavedUT = Time.time;
             }
+
+            //if the sequencer is locked, there is no need to process any sequences.
+            if (isLocked)
+                return;
 
             var activeSequences = sequences.FindAll(s => s.isActive);
 
@@ -729,6 +776,47 @@ namespace IRSequencer.Module
 
             Logger.Log ("[ModuleSequencer] OnStateChange from " + oldState.stateName + "  to " + newState.stateName + " complete.", Logger.Level.Debug);
 
+        }
+
+        public void LockSequencer()
+        {
+            //we need to stop all running sequences and lock them
+            foreach (Sequence sq in sequences) 
+            {
+                sq.Pause ();
+                sq.Reset ();
+                sq.isLocked = true;
+            }
+
+            isLocked = true;
+        }
+
+        public void UnlockSequencer ()
+        {
+            //upon unlocking sequencer should initiate state change to lastState to trigger any auto-starting sequences
+            //there must be at least one state (by definition)
+            if(currentState == null)
+            {
+                currentState = states [0];
+            }
+            //feels a bit hacky, but it should work;
+            //it will unlock all the sequences as a side effect.
+            OnStateChange (currentState, currentState);
+
+            isLocked = false;
+        }
+
+        [KSPAction("Toggle Sequencer Lock")]
+        public void ToggleSequencerLock(KSPActionParam param)
+        {
+            if(isLocked)
+            {
+                UnlockSequencer ();
+            }
+            else
+            {
+                LockSequencer ();
+            }
         }
 
         public override void OnLoad(ConfigNode node)

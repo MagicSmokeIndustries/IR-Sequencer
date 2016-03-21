@@ -673,6 +673,25 @@ namespace IRSequencer.Gui
                     selectedSequencer = Equals (selectedSequencer, sequencers[x]) ? null : sequencers[x];
                 }
 
+
+                bool sequencerLocked = sequencers[x].isLocked;
+                sequencerLocked = GUILayout.Toggle(sequencerLocked,
+                    sequencerLocked ? new GUIContent(TextureLoader.LockedIcon, "Unlock Sequencer") : new GUIContent(TextureLoader.UnlockedIcon, "Lock Sequencer"),
+                    buttonStyle, GUILayout.Width(28), GUILayout.Height(22));
+
+                if(sequencers[x].isLocked != sequencerLocked)
+                {
+                    //we need to trigger either locking or unlocking
+                    if(sequencerLocked)
+                    {
+                        sequencers [x].LockSequencer ();
+                    }
+                    else
+                    {
+                        sequencers [x].UnlockSequencer ();
+                    }
+                }
+
                 GUILayout.Space (4);
 
                 if(GUILayout.Button("Add State", buttonStyle, GUILayout.Width(75), GUILayout.Height(22)))

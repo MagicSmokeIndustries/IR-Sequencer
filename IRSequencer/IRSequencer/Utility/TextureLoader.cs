@@ -30,6 +30,9 @@ namespace IRSequencer.Utility
         internal static Texture2D LoopingIcon { get; private set; }
         internal static Texture2D AutoStartIcon { get; private set; }
 
+        internal static Texture2D LockedIcon { get; private set; }
+        internal static Texture2D UnlockedIcon { get; private set; }
+
         internal static Texture2D DisabledPlayIcon { get; private set; }
         internal static Texture2D DisabledStopIcon { get; private set; }
 
@@ -110,6 +113,12 @@ namespace IRSequencer.Utility
 
                 DisabledStopIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
                 LoadImageFromFile(DisabledStopIcon, "disabled_stop.png");
+
+                LockedIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
+                LoadImageFromFile(LockedIcon, "locked.png");
+
+                UnlockedIcon = new Texture2D(32, 32, TextureFormat.ARGB32, false);
+                LoadImageFromFile(UnlockedIcon, "unlocked.png");
 
                 isReady = true;
             }
