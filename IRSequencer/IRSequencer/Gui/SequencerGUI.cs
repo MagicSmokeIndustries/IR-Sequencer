@@ -663,6 +663,17 @@ namespace IRSequencer.Gui
                     nameStyle.fontStyle = FontStyle.Normal;
                 }
 
+                Vector2 mousePos = Input.mousePosition;
+                mousePos.y = Screen.height - mousePos.y;
+
+                if (SequencerWindowPos.Contains(mousePos))
+                {
+                    Rect last = GUILayoutUtility.GetLastRect();
+                    Vector2 pos = Event.current.mousePosition;
+                    bool highlight = last.Contains(pos);
+                    sequencers [x].part.SetHighlight (highlight, false);
+                }
+
                 bool sequencerEditToggle = (selectedSequencer == sequencers[x]);
 
                 bool seqiencerToggleVal = GUILayout.Toggle(sequencerEditToggle, new GUIContent(TextureLoader.EditIcon, "Edit Name"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22));
