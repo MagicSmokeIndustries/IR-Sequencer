@@ -9,6 +9,7 @@ using IRSequencer.API;
 using IRSequencer.Utility;
 using IRSequencer.Core;
 using IRSequencer.Module;
+using KSP.UI.Screens;
 
 namespace IRSequencer.Gui
 {
@@ -367,13 +368,8 @@ namespace IRSequencer.Gui
             GameEvents.onVesselWasModified.Add(OnVesselWasModified);
             GameEvents.onEditorShipModified.Add(OnEditorShipModified);
             GameEvents.onEditorRestart.Add(OnEditorRestart);
-
+            GameEvents.onGUIApplicationLauncherReady.Add (AddAppLauncherButton);
             GameEvents.onGameSceneLoadRequested.Add(OnGameSceneLoadRequestedForAppLauncher);
-
-            if (ApplicationLauncher.Ready && appLauncherButton == null && ApplicationLauncher.Instance != null)
-            {
-                AddAppLauncherButton();
-            }
 
             Logger.Log("[Sequencer] Awake successful, Addon: " + AddonName, Logger.Level.Debug);
         }
@@ -419,17 +415,10 @@ namespace IRSequencer.Gui
 
         private void DestroyAppLauncherButton()
         {
-            try
+            if (appLauncherButton != null && ApplicationLauncher.Instance != null)
             {
-                if (appLauncherButton != null && ApplicationLauncher.Instance != null)
-                {
-                    ApplicationLauncher.Instance.RemoveModApplication(appLauncherButton);
-                    appLauncherButton = null;
-                }
-            }
-            catch (Exception e)
-            {
-                Logger.Log("[Sequencer] Failed unregistering AppLauncher handlers," + e.Message);
+                ApplicationLauncher.Instance.RemoveModApplication(appLauncherButton);
+                appLauncherButton = null;
             }
         }
 
@@ -445,6 +434,8 @@ namespace IRSequencer.Gui
 
             SequencerGUI.Instance.isReady = false;
             SaveConfigXml();
+
+            GameEvents.onGUIApplicationLauncherReady.Remove (AddAppLauncherButton);
 
             GameEvents.onGameSceneLoadRequested.Remove(OnGameSceneLoadRequestedForAppLauncher);
             DestroyAppLauncherButton();
