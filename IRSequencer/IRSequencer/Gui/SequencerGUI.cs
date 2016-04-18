@@ -89,7 +89,8 @@ namespace IRSequencer.Gui
         internal SequencerState selectedState = null;
         internal Sequence selectedSequence = null;
         internal ModuleSequencer selectedSequencer = null;
-        private List<BasicCommand> availableServoCommands;
+        internal int selectedGroupIndex = 0;
+        internal int selectedServoIndex = 0;
 
         private Dictionary<ModuleSequencer, GameObject> _modulesUIControls;
         private Dictionary<SequencerState, GameObject> _statesUIControls;
@@ -214,7 +215,6 @@ namespace IRSequencer.Gui
                 }
 
             sequencers.Clear();
-            availableServoCommands = null;
             openSequence = null;
 
             //find module SequencerStorage and force loading of sequences
@@ -263,7 +263,6 @@ namespace IRSequencer.Gui
             {
                 IRWrapper.InitWrapper();
             }
-            availableServoCommands = null;
             openSequence = null;
             sequencers.Clear ();
 
@@ -305,7 +304,6 @@ namespace IRSequencer.Gui
         private void OnEditorRestart()
         {
             GUIEnabled = false;
-            availableServoCommands = null;
             openSequence = null;
             sequencers.Clear ();
         }
@@ -746,20 +744,14 @@ namespace IRSequencer.Gui
             sequenceStartToggle.interactable = !module.isLocked;
             sequenceStartToggle.onValueChanged.AddListener(v =>
                 {
-                    if (v && !s.isLocked)
-                    {
-                        if (v != s.isActive)
-                        {
-                            s.Start(module.currentState);
-                        }
-                    }
-                    else if (!s.isLocked)
-                    {
-                        if (v != s.isActive && !s.isFinished)
-                        {
-                            s.Pause();
-                        }
-                    }
+                    if(s.isLocked)
+                        return;
+                    
+                    if (v && !s.isActive)
+                        s.Start(module.currentState);
+
+                    if(!v && s.isActive)
+                        s.Pause();
 
                 });
 
@@ -800,7 +792,17 @@ namespace IRSequencer.Gui
 
         private void ToggleSequenceEditor(Sequence s, bool value)
         {
+            if(value)
+            {
+                openSequence = s;
+                guiRebuildPending = true;
 
+            }
+            else
+            {
+                openSequence = null;
+                CloseEditorWindow ();
+            }
         }
 
         private void ToggleControlWindowEditMode(bool value)
@@ -862,7 +864,54 @@ namespace IRSequencer.Gui
             resizeHandler.minSize = new Vector2(350, 280);
             resizeHandler.maxSize = new Vector2(2000, 1600);
 
+            var leftPane = _editorWindow.GetChild ("WindowContent").GetChild ("Panes").GetChild ("LeftPane");
+            var moveServoTemplate = leftPane.GetChild ("MoveZoneHLG");
+            var moveServoDetails = moveServoTemplate.GetChild("MoveDetails").GetChild("ServoDataVLG");
 
+            var allServos = new List<IRWrapper.IServo>();
+
+            var servoGroupsDropdownList = new List<Dropdown.OptionData> ();
+            foreach (IRWrapper.IControlGroup g in IRWrapper.IRController.ServoGroups) 
+            {
+                allServos.AddRange (g.Servos);
+                servoGroupsDropdownList.Add (new Dropdown.OptionData (g.Name));
+            }
+
+            var servoGroupsDropdown = moveServoDetails.GetChild ("GroupDropdown").GetComponent<Dropdown>();
+            servoGroupsDropdown.options = servoGroupsDropdownList;
+            servoGroupsDropdown.value = selectedGroupIndex;
+
+            var canvas = servoGroupsDropdown.template.gameObject.GetComponent<Canvas>();
+            if (canvas == null)
+                canvas = servoGroupsDropdown.template.gameObject.AddComponent<Canvas>();
+            canvas.sortingLayerID = UIMasterController.Instance.appCanvas.sortingLayerID;
+
+            var servosDropdownList = new List<Dropdown.OptionData> ();
+            foreach (var s in IRWrapper.IRController.ServoGroups[selectedGroupIndex].Servos)
+            {
+                servosDropdownList.Add (new Dropdown.OptionData(s.Name));
+            }
+
+            var servosDropdown = moveServoDetails.GetChild ("ServoDropdown").GetComponent<Dropdown> ();
+            servosDropdown.options = servosDropdownList;
+            servosDropdown.value = selectedServoIndex;
+
+            canvas = servosDropdown.template.gameObject.GetComponent<Canvas>();
+            if (canvas == null)
+                canvas = servosDropdown.template.gameObject.AddComponent<Canvas>();
+            canvas.sortingLayerID = UIMasterController.Instance.appCanvas.sortingLayerID;
+
+            servoGroupsDropdown.onValueChanged.AddListener (v => {
+                selectedGroupIndex = v;
+                servosDropdownList.Clear ();
+                foreach (var s in IRWrapper.IRController.ServoGroups[selectedGroupIndex].Servos) {
+                    servosDropdownList.Add (new Dropdown.OptionData (s.Name));
+                }
+                servosDropdown.options = servosDropdownList;
+                servosDropdown.value = selectedServoIndex = 0;
+            });
+
+            servosDropdown.onValueChanged.AddListener (v => selectedServoIndex = v);
         }
 
         public void RebuildUI()
@@ -910,7 +959,7 @@ namespace IRSequencer.Gui
                 }
             }
 
-            if (UIAssetsLoader.allPrefabsReady && _editorWindow == null && openSequence != null)
+            if (UIAssetsLoader.allPrefabsReady && _editorWindow == null && IRWrapper.APIReady)
             {
                 InitEditorWindow(guiControlWindowEditMode & GUIEnabled);
             }

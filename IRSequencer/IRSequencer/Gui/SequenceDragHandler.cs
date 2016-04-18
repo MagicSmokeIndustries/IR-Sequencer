@@ -53,7 +53,7 @@ namespace IRSequencer.Gui
         public virtual void OnBeginDrag(PointerEventData eventData)
         {
             if(draggedItem == null)
-                draggedItem = this.transform.parent.parent.gameObject; //need to get the whole line as dragged item
+                draggedItem = this.transform.parent.gameObject;
             dropZone = draggedItem.transform.parent;
             startingSiblingIndex = draggedItem.transform.GetSiblingIndex();
 
@@ -161,6 +161,7 @@ namespace IRSequencer.Gui
             var sequenceDropHandler = dropZone.GetComponent<SequenceDropHandler>();
             if ( sequenceDropHandler != null)
             {
+                Logger.Log("[SequenceDragHandler] No SequenceDropHandler on dropzone object");
                 sequenceDropHandler.onSequenceDrop(this);
             }
 

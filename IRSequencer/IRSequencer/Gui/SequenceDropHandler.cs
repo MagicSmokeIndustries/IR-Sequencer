@@ -27,12 +27,15 @@ namespace IRSequencer.Gui
 
         public void onSequenceDrop(SequenceDragHandler dragHandler)
         {
-            var dropppedSequence = dragHandler.linkedSequence;
+            var droppedSequence = dragHandler.linkedSequence;
+            Logger.Log("[SequenceDropHandler] onSequenceDrop called");
 
-            if (linkedState == null || dropppedSequence == null)
+            if (linkedState == null || droppedSequence == null)
                 return;
 
-            dropppedSequence.startState = linkedState;
+            droppedSequence.startState = linkedState;
+
+            Logger.Log("[SequenceDropHandler] onSequenceDrop finished, new startState = " + droppedSequence.startState.stateName);
 
         }
     }

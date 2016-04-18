@@ -70,7 +70,7 @@ namespace IRSequencer.Gui
                         prefabsLoadedCount++;
                     }
 
-                    if (prefabs[i].name == "EditorWindowPrefab")
+                    if (prefabs[i].name == "SequencerEditorWindowPrefab")
                     {
                         editorWindowPrefab = prefabs[i] as GameObject;
                         prefabsLoadedCount++;
