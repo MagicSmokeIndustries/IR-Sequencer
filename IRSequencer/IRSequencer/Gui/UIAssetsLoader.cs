@@ -123,7 +123,7 @@ namespace IRSequencer.Gui
             Logger.Log("Loading bundles from BundlePath: " + bundlePath);
 
             //need to clean cache
-           // Caching.CleanCache();
+            Caching.CleanCache();
             
             StartCoroutine(LoadBundle(bundlePath + "ir_ui_objects.ksp"));
            

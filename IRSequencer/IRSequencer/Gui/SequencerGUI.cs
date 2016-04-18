@@ -86,11 +86,16 @@ namespace IRSequencer.Gui
         internal List<ModuleSequencer> sequencers;
 
         internal Sequence openSequence;
-        internal SequencerState selectedState = null;
-        internal Sequence selectedSequence = null;
-        internal ModuleSequencer selectedSequencer = null;
         internal int selectedGroupIndex = 0;
         internal int selectedServoIndex = 0;
+
+        internal float moveToValue = 0f;
+        internal float moveAtValue = 1.0f;
+        internal KSPActionGroup selectedToggleAG = KSPActionGroup.Abort;
+        internal KSPActionGroup selectedWaitAG = KSPActionGroup.Abort;
+
+        internal int selectedToggleAGX = 0;
+        internal int selectedWaitAGX = 0;
 
         private Dictionary<ModuleSequencer, GameObject> _modulesUIControls;
         private Dictionary<SequencerState, GameObject> _statesUIControls;
@@ -168,6 +173,7 @@ namespace IRSequencer.Gui
                     {
                         ScreenMessages.PostScreenMessage("Sequencer module is required (add probe core).", 3, ScreenMessageStyle.UPPER_CENTER);
                         GUIEnabled = false;
+                        CloseAllWindows();
                         return;
                     }
                 }
@@ -183,6 +189,7 @@ namespace IRSequencer.Gui
                             {
                                 ScreenMessages.PostScreenMessage("Sequencer module is required (add probe core).", 3, ScreenMessageStyle.UPPER_CENTER);
                                 GUIEnabled = false;
+                                CloseAllWindows();
                                 return;
                             }
                         }
@@ -216,7 +223,9 @@ namespace IRSequencer.Gui
 
             sequencers.Clear();
             openSequence = null;
-
+            CloseAllWindows();
+            guiRebuildPending = true;
+            
             //find module SequencerStorage and force loading of sequences
             var modules = v.FindPartModulesImplementing<ModuleSequencer>();
             if (modules == null)
@@ -265,6 +274,7 @@ namespace IRSequencer.Gui
             }
             openSequence = null;
             sequencers.Clear ();
+            guiRebuildPending = true;
 
             var sequencerParts = ship.Parts.FindAll(p => p.FindModuleImplementing<ModuleSequencer>() != null);
 
@@ -304,6 +314,7 @@ namespace IRSequencer.Gui
         private void OnEditorRestart()
         {
             GUIEnabled = false;
+            CloseAllWindows();
             openSequence = null;
             sequencers.Clear ();
         }
@@ -586,6 +597,12 @@ namespace IRSequencer.Gui
 
             var sequencerNameLabel = sequencerControls.GetChild("SequencerNameText").GetComponent<Text>();
             sequencerNameLabel.text = module.sequencerName;
+            sequencerNameLabel.gameObject.SetActive(!guiControlWindowEditMode);
+
+            var sequencerNameInputField = sequencerControls.GetChild("SequencerNameInputField").GetComponent<InputField>();
+            sequencerNameInputField.text = module.sequencerName;
+            sequencerNameInputField.onEndEdit.AddListener(v => module.sequencerName = sequencerNameLabel.text = v);
+            sequencerNameInputField.gameObject.SetActive(guiControlWindowEditMode); //should be only visible in edit mode
 
             var sequencerEditModeToggle = sequencerControls.GetChild("SequencerEditToggle").GetComponent<Toggle>();
             sequencerEditModeToggle.isOn = guiControlWindowEditMode;
@@ -695,22 +712,15 @@ namespace IRSequencer.Gui
             sequenceDragHandler.background = UIAssetsLoader.spriteAssets.Find(a => a.name == "IRWindowServoFrame_Drag");
             sequenceDragHandler.draggedItem = sequenceLinePrefab;
 
+            var sequenceNameText = sequenceLinePrefab.GetChild("SequenceNameText").GetComponent<Text>();
+            sequenceNameText.text = s.name;
+            sequenceNameText.gameObject.SetActive(!guiControlWindowEditMode);
+
             var sequenceNameInputField = sequenceLinePrefab.GetChild("SequenceNameInputField").GetComponent<InputField>();
             sequenceNameInputField.text = s.name;
-            sequenceNameInputField.onEndEdit.AddListener(v => s.name = v);
-
-            var sequenceToggleKeyInputField = sequenceLinePrefab.GetChild("SequenceToggleKey").GetComponent<InputField>();
-            sequenceToggleKeyInputField.text = s.keyShortcut;
-            sequenceToggleKeyInputField.onEndEdit.AddListener(v => s.keyShortcut = v);
-
-            var sequenceAutoStartToggle = sequenceLinePrefab.GetChild("SequenceAutoStartToggle").GetComponent<Toggle>();
-            sequenceAutoStartToggle.isOn = s.autoStart;
-            sequenceAutoStartToggle.onValueChanged.AddListener(v => s.autoStart = v);
-
-            var sequenceEditModeToggle = sequenceLinePrefab.GetChild("SequenceEditModeToggle").GetComponent<Toggle>();
-            sequenceEditModeToggle.isOn = (selectedSequence != null);
-            sequenceEditModeToggle.onValueChanged.AddListener(v => ToggleSequenceEditor(s, v));
-
+            sequenceNameInputField.onEndEdit.AddListener(v => s.name = sequenceNameText.text =  v);
+            sequenceNameInputField.gameObject.SetActive(guiControlWindowEditMode);
+            
             var dropdownStateOptions = new List<Dropdown.OptionData>();
             var sequenceEndStateIndex = 0;
             for(int i=0; i< module.states.Count; i++)
@@ -719,7 +729,11 @@ namespace IRSequencer.Gui
                 if (module.states[i] == s.endState)
                     sequenceEndStateIndex = i;
             }
-            
+
+            var endStateText = sequenceLinePrefab.GetChild("EndStateNameText").GetComponent<Text>();
+            endStateText.text = s.endState.stateName;
+            endStateText.gameObject.SetActive(!guiControlWindowEditMode);
+
             var endStateDropdown = sequenceLinePrefab.GetChild("EndStateDropdown").GetComponent<Dropdown>();
 
             var template = endStateDropdown.transform.FindChild("Template");
@@ -736,8 +750,21 @@ namespace IRSequencer.Gui
                     if(newEndState!= null)
                     {
                         s.endState = newEndState;
+                        endStateText.text = newEndState.stateName;
                     }
                 });
+            endStateDropdown.gameObject.SetActive(guiControlWindowEditMode);
+
+
+            var sequenceToggleKeyInputField = sequenceLinePrefab.GetChild("SequenceToggleKey").GetComponent<InputField>();
+            sequenceToggleKeyInputField.text = s.keyShortcut;
+            sequenceToggleKeyInputField.onEndEdit.AddListener(v => s.keyShortcut = v);
+            sequenceToggleKeyInputField.gameObject.SetActive(guiControlWindowEditMode);
+
+
+            var sequenceAutoStartToggle = sequenceLinePrefab.GetChild("SequenceAutoStartToggle").GetComponent<Toggle>();
+            sequenceAutoStartToggle.isOn = s.autoStart;
+            sequenceAutoStartToggle.onValueChanged.AddListener(v => s.autoStart = v);
 
             var sequenceStartToggle = sequenceLinePrefab.GetChild("SequenceStartToggle").GetComponent<Toggle>();
             sequenceStartToggle.isOn = s.isActive;
@@ -765,6 +792,10 @@ namespace IRSequencer.Gui
             var sequenceLoopToggle = sequenceLinePrefab.GetChild("SequenceLoopToggle").GetComponent<Toggle>();
             sequenceLoopToggle.isOn = s.isLooped;
             sequenceLoopToggle.onValueChanged.AddListener(v => s.isLooped = v);
+
+            var sequenceEditModeToggle = sequenceLinePrefab.GetChild("SequenceEditModeToggle").GetComponent<Toggle>();
+            sequenceEditModeToggle.isOn = (openSequence != null);
+            sequenceEditModeToggle.onValueChanged.AddListener(v => ToggleSequenceEditor(s, v));
 
             var sequenceCloneButton = sequenceLinePrefab.GetChild("SequenceCloneButton").GetComponent<Button>();
             sequenceCloneButton.onClick.AddListener(() =>
@@ -795,7 +826,11 @@ namespace IRSequencer.Gui
             if(value)
             {
                 openSequence = s;
-                guiRebuildPending = true;
+                
+                if(!_editorWindowFader)
+                    InitEditorWindow();
+
+                _editorWindowFader.FadeTo(_UIAlphaValue, 0.1f);
 
             }
             else
@@ -809,6 +844,7 @@ namespace IRSequencer.Gui
         {
             //toggle edit mode
             guiControlWindowEditMode = value;
+            guiRebuildPending = true;
         }
 
         private void InitEditorWindow(bool startSolid = true)
@@ -849,6 +885,9 @@ namespace IRSequencer.Gui
                 t.tooltipText = "Show/hide UI settings";
             }
 
+            var titleText = _editorWindow.GetChild("WindowTitle").GetComponent<Text>();
+            titleText.text = "Editing: " + openSequence.name;
+
             var closeButton = _editorWindow.GetChild("WindowTitle").GetChild("RightWindowButton");
             if (closeButton != null)
             {
@@ -868,6 +907,30 @@ namespace IRSequencer.Gui
             var moveServoTemplate = leftPane.GetChild ("MoveZoneHLG");
             var moveServoDetails = moveServoTemplate.GetChild("MoveDetails").GetChild("ServoDataVLG");
 
+            var moveToInputField = moveServoDetails.GetChild("MoveToHLG").GetChild("MoveToPositionInputField").GetComponent<InputField>();
+            moveToInputField.text = string.Format("{0:#0.00}", moveToValue);
+            moveToInputField.onEndEdit.AddListener(v =>
+            {
+                float tmp = 0f;
+
+                if (float.TryParse(v, out tmp))
+                {
+                    moveToValue = tmp;
+                }
+            });
+
+            var moveAtInputField = moveServoDetails.GetChild("MoveToHLG").GetChild("MoveToSpeedInputField").GetComponent<InputField>();
+            moveAtInputField.text = string.Format("{0:#0.00}", moveAtValue);
+            moveAtInputField.onEndEdit.AddListener(v =>
+            {
+                float tmp = 0f;
+
+                if (float.TryParse(v, out tmp))
+                {
+                    moveAtValue = tmp;
+                }
+            });
+
             var allServos = new List<IRWrapper.IServo>();
 
             var servoGroupsDropdownList = new List<Dropdown.OptionData> ();
@@ -881,9 +944,7 @@ namespace IRSequencer.Gui
             servoGroupsDropdown.options = servoGroupsDropdownList;
             servoGroupsDropdown.value = selectedGroupIndex;
 
-            var canvas = servoGroupsDropdown.template.gameObject.GetComponent<Canvas>();
-            if (canvas == null)
-                canvas = servoGroupsDropdown.template.gameObject.AddComponent<Canvas>();
+            var canvas = servoGroupsDropdown.template.gameObject.AddOrGetComponent<Canvas>();
             canvas.sortingLayerID = UIMasterController.Instance.appCanvas.sortingLayerID;
 
             var servosDropdownList = new List<Dropdown.OptionData> ();
@@ -896,22 +957,119 @@ namespace IRSequencer.Gui
             servosDropdown.options = servosDropdownList;
             servosDropdown.value = selectedServoIndex;
 
-            canvas = servosDropdown.template.gameObject.GetComponent<Canvas>();
-            if (canvas == null)
-                canvas = servosDropdown.template.gameObject.AddComponent<Canvas>();
+            canvas = servosDropdown.template.gameObject.AddOrGetComponent<Canvas>();
             canvas.sortingLayerID = UIMasterController.Instance.appCanvas.sortingLayerID;
 
-            servoGroupsDropdown.onValueChanged.AddListener (v => {
-                selectedGroupIndex = v;
-                servosDropdownList.Clear ();
-                foreach (var s in IRWrapper.IRController.ServoGroups[selectedGroupIndex].Servos) {
-                    servosDropdownList.Add (new Dropdown.OptionData (s.Name));
-                }
-                servosDropdown.options = servosDropdownList;
-                servosDropdown.value = selectedServoIndex = 0;
+            servosDropdown.onValueChanged.AddListener(v => {
+                selectedServoIndex = v;
+                moveToValue = IRWrapper.IRController.ServoGroups[selectedGroupIndex].Servos[selectedServoIndex].Position;
+                moveToInputField.text = string.Format("{0:#0.00}", moveToValue);
             });
 
-            servosDropdown.onValueChanged.AddListener (v => selectedServoIndex = v);
+            servoGroupsDropdown.onValueChanged.AddListener(v => {
+                selectedGroupIndex = v;
+                servosDropdownList.Clear();
+                foreach (var s in IRWrapper.IRController.ServoGroups[selectedGroupIndex].Servos)
+                {
+                    servosDropdownList.Add(new Dropdown.OptionData(s.Name));
+                }
+                servosDropdown.options = servosDropdownList;
+                servosDropdown.onValueChanged.Invoke(0);
+            });
+            
+            var addMoveCommandButton = moveServoTemplate.GetChild("MoveAddButton").GetComponent<Button>();
+            addMoveCommandButton.onClick.AddListener(() => {
+                var servo = IRWrapper.IRController.ServoGroups[selectedGroupIndex].Servos[selectedServoIndex];
+                
+                var bc = new BasicCommand(servo, moveToValue, moveAtValue);
+
+                openSequence.commands.Add(bc);
+
+                guiRebuildPending = true;
+            });
+
+
+            var AGToggleZone = leftPane.GetChild("AGToggleZoneHLG");
+            var AGToggleDropDown = AGToggleZone.GetChild("AGToggleDetails").GetChild("ActionGroupDropdown").GetComponent<Dropdown>();
+            
+            var actionGroupsOptions = new List<Dropdown.OptionData>();
+            //first list all the stock AGs
+            var stockActionGroups = (KSPActionGroup[])Enum.GetValues(typeof(KSPActionGroup));
+
+            foreach (KSPActionGroup a in stockActionGroups)
+            {
+                if (a == KSPActionGroup.None)
+                    continue;
+
+                actionGroupsOptions.Add(new Dropdown.OptionData(a.ToString()));
+
+            }
+
+            //now if AGX is installed, list all the groups
+            if (ActionGroupsExtendedAPI.Instance != null && ActionGroupsExtendedAPI.Instance.Installed())
+            {
+                Dictionary<int, string> extendedGroups;
+
+                if (HighLogic.LoadedSceneIsFlight)
+                {
+                    extendedGroups = ActionGroupsExtendedAPI.Instance.GetAssignedGroups(FlightGlobals.ActiveVessel);
+                }
+                else
+                {
+                    extendedGroups = ActionGroupsExtendedAPI.Instance.GetAssignedGroups();
+                }
+                /*
+                foreach (var pair in extendedGroups)
+                {
+                    actionGroupsOptions.Add(new Dropdown.OptionData(pair.Value));
+                }*/
+
+                //consider creating a separate box for AGX
+            }
+
+            AGToggleDropDown.options = actionGroupsOptions;
+            canvas = AGToggleDropDown.template.gameObject.AddOrGetComponent<Canvas>();
+            canvas.sortingLayerID = UIMasterController.Instance.appCanvas.sortingLayerID;
+
+            AGToggleDropDown.value = actionGroupsOptions.FindIndex(t => t.text == selectedToggleAG.ToString());
+            AGToggleDropDown.onValueChanged.AddListener(v =>
+            {
+                //selectedToggleAG = stockActionGroups[v+1]; //because we skipped KSPActionGroup.none
+                selectedToggleAG = stockActionGroups.FirstOrDefault(x => x.ToString() == actionGroupsOptions[v].text);
+            });
+
+            var addToggleAGCommandButton = AGToggleZone.GetChild("AGToggleAddButton").GetComponent<Button>();
+            addToggleAGCommandButton.onClick.AddListener(() =>
+            {
+                var bc = new BasicCommand(selectedToggleAG);
+                openSequence.commands.Add(bc);
+                guiRebuildPending = true;
+            });
+
+            var AGWaitZone = leftPane.GetChild("AGWaitZoneHLG");
+            var AGWaitDropDown = AGWaitZone.GetChild("AGWaitDetails").GetChild("ActionGroupDropdown").GetComponent<Dropdown>();
+
+            AGWaitDropDown.options = actionGroupsOptions;
+            canvas = AGWaitDropDown.template.gameObject.AddOrGetComponent<Canvas>();
+            canvas.sortingLayerID = UIMasterController.Instance.appCanvas.sortingLayerID;
+
+            AGWaitDropDown.value = actionGroupsOptions.FindIndex(t => t.text == selectedWaitAG.ToString());
+            AGWaitDropDown.onValueChanged.AddListener(v =>
+            {
+                //selectedWaitAG = stockActionGroups[v+1]; //because we skipped KSPActionGroup.none
+                selectedWaitAG = stockActionGroups.FirstOrDefault(x => x.ToString() == actionGroupsOptions[v].text);
+            });
+
+            var addWaitAGCommandButton = AGWaitZone.GetChild("AGWaitAddButton").GetComponent<Button>();
+            addWaitAGCommandButton.onClick.AddListener(() =>
+            {
+                var bc = new BasicCommand(selectedWaitAG);
+                bc.wait = true;
+
+                openSequence.commands.Add(bc);
+                guiRebuildPending = true;
+            });
+
         }
 
         public void RebuildUI()
@@ -959,11 +1117,10 @@ namespace IRSequencer.Gui
                 }
             }
 
-            if (UIAssetsLoader.allPrefabsReady && _editorWindow == null && IRWrapper.APIReady)
+            if (UIAssetsLoader.allPrefabsReady && _editorWindow == null && openSequence != null)
             {
-                InitEditorWindow(guiControlWindowEditMode & GUIEnabled);
+                InitEditorWindow(GUIEnabled);
             }
-            
 
             //we don't need to set global alpha as all the windows will be faded it to the setting
             SetGlobalScale(_UIScaleValue);
