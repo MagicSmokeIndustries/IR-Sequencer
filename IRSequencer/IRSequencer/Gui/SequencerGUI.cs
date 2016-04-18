@@ -609,6 +609,7 @@ namespace IRSequencer.Gui
             //there will be more fields here eventually
 
             var statesArea = sequencerLinePrefab.GetChild("SequencerStatesVLG");
+            statesArea.AddComponent<StateDropHandler> ();
 
             for(int i=0; i<module.states.Count; i++)
             {
@@ -625,8 +626,11 @@ namespace IRSequencer.Gui
         {
             var stateControls = stateLinePrefab.GetChild("SequencerStateControlsHLG");
 
-            var stateDragHandle = stateControls.GetChild("SequencerStateStatusHandle");
-            //add DragHandler component here and change icon accordingly
+            var stateDragHandleObject = stateControls.GetChild("SequencerStateStatusHandle");
+            var dragHandler = stateDragHandleObject.AddComponent<StateDragHandler> ();
+            dragHandler.mainCanvas = UIMasterController.Instance.appCanvas;
+            dragHandler.background = UIAssetsLoader.spriteAssets.Find(a => a.name == "IRWindowGroupFrame_Drag");
+            dragHandler.linkedState = state;
 
             var sequencerStateNameLabel = stateControls.GetChild("SequencerStateNameText").GetComponent<Text>();
             sequencerStateNameLabel.text = state.stateName;
@@ -665,6 +669,8 @@ namespace IRSequencer.Gui
                 });
 
             var sequencesArea = stateLinePrefab.GetChild("SequencerStateSequencesVLG");
+            var dropHandler = sequencesArea.AddComponent<SequenceDropHandler> ();
+            dropHandler.linkedState = state;
 
             var stateSequences = module.sequences.FindAll(s => s.startState == state);
 
@@ -688,7 +694,8 @@ namespace IRSequencer.Gui
             var sequenceStatusHandle = sequenceLinePrefab.GetChild("SequenceStatusRawImage").GetComponent<RawImage>();
             var sequenceDragHandler = sequenceStatusHandle.gameObject.AddComponent<SequenceDragHandler>();
             sequenceDragHandler.mainCanvas = UIMasterController.Instance.appCanvas;
-            sequenceDragHandler.background = UIAssetsLoader.spriteAssets.Find(a => a.name == "IRWindowGroupFrame_Drag");
+            sequenceDragHandler.background = UIAssetsLoader.spriteAssets.Find(a => a.name == "IRWindowServoFrame_Drag");
+            sequenceDragHandler.draggedItem = sequenceLinePrefab;
 
             var sequenceNameInputField = sequenceLinePrefab.GetChild("SequenceNameInputField").GetComponent<InputField>();
             sequenceNameInputField.text = s.name;
@@ -891,15 +898,18 @@ namespace IRSequencer.Gui
                 InitControlWindow(GUIEnabled);
             }
 
-            var sequencersArea = _controlWindow.GetChild("WindowContent");
-            for(int i=0; i< sequencers.Count; i++)
+            if(_controlWindow)
             {
-                var sequencerLine = GameObject.Instantiate(UIAssetsLoader.sequencerLinePrefab);
-                sequencerLine.transform.SetParent(sequencersArea.transform, false);
+                var sequencersArea = _controlWindow.GetChild("WindowContent");
+                for(int i=0; i< sequencers.Count; i++)
+                {
+                    var sequencerLine = GameObject.Instantiate(UIAssetsLoader.sequencerLinePrefab);
+                    sequencerLine.transform.SetParent(sequencersArea.transform, false);
 
-                InitSequencerLinePrefab(sequencerLine, sequencers[i]);
+                    InitSequencerLinePrefab(sequencerLine, sequencers[i]);
+                }
             }
-            
+
             if (UIAssetsLoader.allPrefabsReady && _editorWindow == null && openSequence != null)
             {
                 InitEditorWindow(guiControlWindowEditMode & GUIEnabled);

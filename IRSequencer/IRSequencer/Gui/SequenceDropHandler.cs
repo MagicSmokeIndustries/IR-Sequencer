@@ -9,6 +9,8 @@ namespace IRSequencer.Gui
     /// </summary>
     public class SequenceDropHandler : MonoBehaviour, IDropHandler
     {
+        public IRSequencer.Core.SequencerState linkedState;
+
         public void OnDrop(PointerEventData eventData)
         {
             var droppedObject = eventData.pointerDrag;
@@ -21,14 +23,17 @@ namespace IRSequencer.Gui
             }
 
             onSequenceDrop(dragHandler);
-
-            Debug.Log("Group OnDrop: " + droppedObject.name);
         }
 
         public void onSequenceDrop(SequenceDragHandler dragHandler)
         {
-            
-            
+            var dropppedSequence = dragHandler.linkedSequence;
+
+            if (linkedState == null || dropppedSequence == null)
+                return;
+
+            dropppedSequence.startState = linkedState;
+
         }
     }
 

@@ -7,7 +7,7 @@ using System;
 namespace IRSequencer.Gui
 {
     
-    public class SequenceDragHandler : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
+    public class StateDragHandler : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
     {
         public Canvas mainCanvas;
         public UnityEngine.Sprite background;
@@ -16,7 +16,7 @@ namespace IRSequencer.Gui
         public Transform dropZone;
         public bool createCopy = false;
 
-        public IRSequencer.Core.Sequence linkedSequence;
+        public IRSequencer.Core.SequencerState linkedState;
 
         protected Vector2 startingPosition;
         protected Image draggedItemBG;
@@ -42,12 +42,7 @@ namespace IRSequencer.Gui
 
         public virtual float GetDraggedItemHeight()
         {
-            var hlg = draggedItem.GetComponent<HorizontalLayoutGroup> ();
-
-            if (hlg == null)
-                return 26;
-            
-            return hlg.preferredHeight;
+            return draggedItem.GetComponent<VerticalLayoutGroup>().preferredHeight;
         }
 
         public virtual void OnBeginDrag(PointerEventData eventData)
@@ -101,11 +96,6 @@ namespace IRSequencer.Gui
             if (animationHelper.isHeightActive)
                 return;
 
-            if(eventData.pointerEnter != null && eventData.pointerEnter.GetComponent<SequenceDropHandler>() != null)
-            {
-                dropZone = eventData.pointerEnter.transform;
-                placeholder.transform.SetParent(dropZone,false);
-            }
 
             var currentSiblingIndex = placeholder.transform.GetSiblingIndex();
             var newSiblingIndex = dropZone.childCount-1;
@@ -158,10 +148,10 @@ namespace IRSequencer.Gui
                 Destroy(cg);
             }
 
-            var sequenceDropHandler = dropZone.GetComponent<SequenceDropHandler>();
-            if ( sequenceDropHandler != null)
+            var groupDropHandler = dropZone.GetComponent<StateDropHandler>();
+            if ( groupDropHandler != null)
             {
-                sequenceDropHandler.onSequenceDrop(this);
+                groupDropHandler.onStateDrop(this);
             }
 
             draggedItem.transform.SetParent(dropZone, false);

@@ -63,8 +63,6 @@
     <Compile Include="API\IRWrapper.cs" />
     <Compile Include="Gui\BasicTooltip.cs" />
     <Compile Include="Gui\CanvasGroupFader.cs" />
-    <Compile Include="Gui\SequenceDragHandler.cs" />
-    <Compile Include="Gui\SequenceDropHandler.cs" />
     <Compile Include="Gui\HoldButton.cs" />
     <Compile Include="Gui\PanelDragger.cs" />
     <Compile Include="Gui\PanelResizer.cs" />
@@ -79,6 +77,10 @@
     <Compile Include="Core\SequencerState.cs" />
     <Compile Include="Module\ModuleSequencer.cs" />
     <Compile Include="Gui\SequencerGUI.cs" />
+    <Compile Include="Gui\StateDragHandler.cs" />
+    <Compile Include="Gui\StateDropHandler.cs" />
+    <Compile Include="Gui\SequenceDragHandler.cs" />
+    <Compile Include="Gui\SequenceDropHandler.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
