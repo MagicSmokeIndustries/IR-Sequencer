@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using System.Collections;
+using UnityEngine.UI;
 using UnityEngine.EventSystems;
 
 namespace IRSequencer.Gui
@@ -25,11 +26,26 @@ namespace IRSequencer.Gui
 
         public void onCommandDrop(CommandDragHandler dragHandler)
         {
-            Logger.Log("[CommandDropHandler] onSequenceDrop called");
+            Logger.Log("[CommandDropHandler] onCommandDrop called");
 
-            //use SequencerGUI.openSequence to get sequence details
+            if (!SequencerGUI.Instance)
+                return;
 
-            Logger.Log("[CommandDropHandler] onSequenceDrop finished");
+            if (SequencerGUI.Instance.openSequence == null)
+                return;
+
+            var bc = dragHandler.linkedCommand;
+            int insertAt = dragHandler.placeholder.transform.GetSiblingIndex();
+
+            SequencerGUI.Instance.openSequence.commands.Remove(bc);
+            SequencerGUI.Instance.openSequence.commands.Insert(insertAt, bc);
+
+            //SequencerGUI.guiRebuildPending = true;
+
+            /*var commandNumberText = dragHandler.draggedItem.GetChild("CommandNumberLabel").GetComponent<Text>();
+            commandNumberText.text = string.Format("{0:#0}", SequencerGUI.Instance.openSequence.commands.FindIndex(c => c == bc));
+            */
+            Logger.Log("[CommandDropHandler] onCommandDrop finished");
 
         }
     }
