@@ -21,6 +21,7 @@ namespace IRSequencer.Gui
         internal static GameObject uiSettingsWindowPrefab;
 
         internal static GameObject editorWindowPrefab;
+        internal static GameObject sequenceCommandLinePrefab;
         
         internal static GameObject basicTooltipPrefab;
 
@@ -76,6 +77,12 @@ namespace IRSequencer.Gui
                         prefabsLoadedCount++;
                     }
 
+                    if (prefabs[i].name == "SequenceCommandLine")
+                    {
+                        sequenceCommandLinePrefab = prefabs[i] as GameObject;
+                        prefabsLoadedCount++;
+                    }
+
                     if (prefabs[i].name == "BasicTooltipPrefab")
                     {
                         basicTooltipPrefab = prefabs[i] as GameObject;
@@ -83,7 +90,7 @@ namespace IRSequencer.Gui
                     }
                 }
 
-                allPrefabsReady = (prefabsLoadedCount >= 7);
+                allPrefabsReady = (prefabsLoadedCount > 7);
 
                 spriteAssets = new List<UnityEngine.Sprite>();
                 var sprites = IRAssetBundle.LoadAllAssets<UnityEngine.Sprite>();

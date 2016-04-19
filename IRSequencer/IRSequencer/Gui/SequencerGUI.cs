@@ -96,11 +96,18 @@ namespace IRSequencer.Gui
 
         internal int selectedToggleAGX = 0;
         internal int selectedWaitAGX = 0;
+        internal float delayTimeValue = 1f;
+        internal int repeatLineIndexValue = 0;
+        internal int repeatTimesValue = -1;
+
+        internal KSPActionGroup[] stockActionGroups;
+        internal List<Dropdown.OptionData> actionGroupsOptions;
 
         private Dictionary<ModuleSequencer, GameObject> _modulesUIControls;
         private Dictionary<SequencerState, GameObject> _statesUIControls;
         private Dictionary<Sequence, GameObject> _sequencesUIControls;
-        
+
+        private Dictionary<BasicCommand, GameObject> _openSequenceCommandControls;
         
         private void AddAppLauncherButton()
         {
@@ -378,6 +385,8 @@ namespace IRSequencer.Gui
                 _settingsWindow.DestroyGameObjectImmediate();
                 _settingsWindow = null;
             }
+
+            _openSequenceCommandControls = null;
 
             GameEvents.onShowUI.Remove(OnShowUI);
             GameEvents.onHideUI.Remove(OnHideUI);
@@ -671,7 +680,7 @@ namespace IRSequencer.Gui
                     guiRebuildPending = true;
 
                 });
-
+            sequencerStateDeleteButton.gameObject.SetActive (guiControlWindowEditMode);
 
             var stateAddSequenceButton = stateControls.GetChild("AddSequenceButton").GetComponent<Button>();
             stateAddSequenceButton.onClick.AddListener(() => 
@@ -759,7 +768,7 @@ namespace IRSequencer.Gui
             var sequenceToggleKeyInputField = sequenceLinePrefab.GetChild("SequenceToggleKey").GetComponent<InputField>();
             sequenceToggleKeyInputField.text = s.keyShortcut;
             sequenceToggleKeyInputField.onEndEdit.AddListener(v => s.keyShortcut = v);
-            sequenceToggleKeyInputField.gameObject.SetActive(guiControlWindowEditMode);
+            sequenceToggleKeyInputField.gameObject.SetActive(true); //zodius wants it visible all the time
 
 
             var sequenceAutoStartToggle = sequenceLinePrefab.GetChild("SequenceAutoStartToggle").GetComponent<Toggle>();
@@ -931,12 +940,9 @@ namespace IRSequencer.Gui
                 }
             });
 
-            var allServos = new List<IRWrapper.IServo>();
-
             var servoGroupsDropdownList = new List<Dropdown.OptionData> ();
             foreach (IRWrapper.IControlGroup g in IRWrapper.IRController.ServoGroups) 
             {
-                allServos.AddRange (g.Servos);
                 servoGroupsDropdownList.Add (new Dropdown.OptionData (g.Name));
             }
 
@@ -991,10 +997,14 @@ namespace IRSequencer.Gui
 
             var AGToggleZone = leftPane.GetChild("AGToggleZoneHLG");
             var AGToggleDropDown = AGToggleZone.GetChild("AGToggleDetails").GetChild("ActionGroupDropdown").GetComponent<Dropdown>();
+
+            //first list all the stock AGs into global vars
+            if (actionGroupsOptions == null)
+                actionGroupsOptions = new List<Dropdown.OptionData> ();
+            else
+                actionGroupsOptions.Clear ();
             
-            var actionGroupsOptions = new List<Dropdown.OptionData>();
-            //first list all the stock AGs
-            var stockActionGroups = (KSPActionGroup[])Enum.GetValues(typeof(KSPActionGroup));
+            stockActionGroups = (KSPActionGroup[])Enum.GetValues(typeof(KSPActionGroup));
 
             foreach (KSPActionGroup a in stockActionGroups)
             {
@@ -1004,7 +1014,7 @@ namespace IRSequencer.Gui
                 actionGroupsOptions.Add(new Dropdown.OptionData(a.ToString()));
 
             }
-
+            /*
             //now if AGX is installed, list all the groups
             if (ActionGroupsExtendedAPI.Instance != null && ActionGroupsExtendedAPI.Instance.Installed())
             {
@@ -1018,14 +1028,15 @@ namespace IRSequencer.Gui
                 {
                     extendedGroups = ActionGroupsExtendedAPI.Instance.GetAssignedGroups();
                 }
-                /*
+
                 foreach (var pair in extendedGroups)
                 {
                     actionGroupsOptions.Add(new Dropdown.OptionData(pair.Value));
-                }*/
+                }
 
                 //consider creating a separate box for AGX
             }
+            */
 
             AGToggleDropDown.options = actionGroupsOptions;
             canvas = AGToggleDropDown.template.gameObject.AddOrGetComponent<Canvas>();
@@ -1070,6 +1081,250 @@ namespace IRSequencer.Gui
                 guiRebuildPending = true;
             });
 
+
+            var delayZone = leftPane.GetChild ("DelayZoneHLG");
+            var delayTimeInputField = delayZone.GetChild ("DelayDetails").GetChild ("DelayZone").GetChild ("DelayInputField").GetComponent<InputField> ();
+            delayTimeInputField.text = string.Format("{0:#0.0}", delayTimeValue);
+            delayTimeInputField.onEndEdit.AddListener (v => {
+                float tmp = 0f;
+
+                if (float.TryParse(v, out tmp))
+                {
+                    delayTimeValue = tmp;
+                }
+            });
+
+            var addDelayCommandButton = delayZone.GetChild ("DelayAddButton").GetComponent<Button> ();
+            addDelayCommandButton.onClick.AddListener (() => {
+                var bc = new BasicCommand(true, delayTimeValue);
+
+                openSequence.commands.Add(bc);
+
+                guiRebuildPending = true;
+            });
+
+            var repeatZone = leftPane.GetChild ("RepeatZoneHLG");
+            var repeatDetails = repeatZone.GetChild ("RepeatDetails").GetChild ("RepeatDataVLG");
+
+            var gotoIndexInputField = repeatDetails.GetChild ("GotoHLG").GetChild ("GotoIndexInputField").GetComponent<InputField> ();
+            gotoIndexInputField.text = string.Format("{0:#0}", repeatLineIndexValue);
+            gotoIndexInputField.onEndEdit.AddListener (v => {
+                int tmp;
+                if (int.TryParse(v, out tmp))
+                {
+                    repeatLineIndexValue = tmp;
+                }
+            });
+
+            var repeatInputField = repeatDetails.GetChild ("RepeatHLG").GetChild ("RepeatInputField").GetComponent<InputField> ();
+            repeatInputField.text = string.Format("{0:#0}", repeatTimesValue);
+            repeatInputField.onEndEdit.AddListener (v => {
+                int tmp;
+                if (int.TryParse(v, out tmp))
+                {
+                    repeatTimesValue = tmp;
+                }
+            });
+
+            if (_openSequenceCommandControls == null)
+                _openSequenceCommandControls = new Dictionary<BasicCommand, GameObject> ();
+            else
+                _openSequenceCommandControls.Clear ();
+
+            //now we can display commands on the right pane
+            var commandsArea =  _editorWindow.GetChild ("WindowContent").GetChild ("Panes").GetChild ("RightPane").GetChild("ViewPort").GetChild("Content").GetChild("CommandsVLG");
+            commandsArea.AddComponent<CommandDropHandler> ();
+
+            for(int i=0; i<openSequence.commands.Count; i++)
+            {
+                var bc = openSequence.commands [i];
+
+                var commandLine = GameObject.Instantiate(UIAssetsLoader.sequenceCommandLinePrefab);
+                commandLine.transform.SetParent(commandsArea.transform, false);
+
+                InitCommandLine (commandLine, bc);
+
+                _openSequenceCommandControls.Add (bc, commandLine);
+            }
+        }
+
+        private void InitCommandLine(GameObject commandLinePrefab, BasicCommand bc)
+        {
+            bool isServoCommand = (bc.servo != null);
+            bool isToggleAGCommand = (bc.ag != KSPActionGroup.None && bc.wait == false);
+            bool isWaitAGCommand = (bc.ag != KSPActionGroup.None && bc.wait);
+            bool isWaitForServosCommands = bc.wait && !isWaitAGCommand;
+            bool isDelayCommand = bc.wait && (bc.waitTime > 0f);
+            bool isRepeatCommand = (bc.gotoIndex != -1);
+
+            var backgroundImage = commandLinePrefab.GetComponent<Image> ();
+
+            if(isServoCommand || isToggleAGCommand)
+                backgroundImage.sprite = UIAssetsLoader.spriteAssets.Find (i => i.name == "IRWindowButtonGreen");
+            else if(isRepeatCommand)
+                backgroundImage.sprite = UIAssetsLoader.spriteAssets.Find (i => i.name == "IRWindowButtonYellow");
+            else
+                backgroundImage.sprite = UIAssetsLoader.spriteAssets.Find (i => i.name == "IRWindowButtonRed");
+
+            var commandDragHandle = commandLinePrefab.GetChild ("CommandDragHandle");
+            var commandStatusRawImage = commandDragHandle.GetComponent<RawImage> ();
+
+            if(openSequence.isActive || openSequence.IsPaused) //we only need to display statuses when we are in play/pause/step
+            {
+                if(bc.isActive)
+                {
+                    commandStatusRawImage.texture = UIAssetsLoader.iconAssets.Find (i => i.name == "IRWindowIndicator_Active");
+                }
+                else if(bc.isFinished)
+                {
+                    commandStatusRawImage.texture = UIAssetsLoader.iconAssets.Find (i => i.name == "IRWindowIndicator_Finished");
+                }
+                else
+                {
+                    commandStatusRawImage.texture = UIAssetsLoader.iconAssets.Find (i => i.name == "IRWindowIndicator_Idle");
+                }
+            }
+
+            var dragHandler = commandDragHandle.AddComponent<CommandDragHandler> ();
+            dragHandler.mainCanvas = UIMasterController.Instance.appCanvas;
+            dragHandler.draggedItem = commandLinePrefab;
+
+            var commandLineNumberText = commandLinePrefab.GetChild ("CommandNumberLabel").GetComponent<Text> ();
+            commandLineNumberText.text = string.Format ("{0:#0}", openSequence.commands.FindIndex (c => c == bc));
+
+            var commandText = commandLinePrefab.GetChild ("CommandTextLabel").GetComponent<Text> ();
+
+            if(isToggleAGCommand)
+            {
+                commandText.text = "Toggle";
+            }
+            else if(isWaitAGCommand)
+            {
+                commandText.text = "Wait for";
+            }
+            else if(isWaitForServosCommands)
+            {
+                commandText.text = "Wait for commands";
+                commandText.gameObject.GetComponent<LayoutElement> ().minWidth = 100;
+            }
+            else if (isDelayCommand)
+            {
+                commandText.text = "Delay for";
+            }
+            commandText.gameObject.SetActive (!isServoCommand);
+
+            if(isToggleAGCommand || isWaitAGCommand)
+            {
+                var AGDropdown = commandLinePrefab.GetChild("ActionGroupDropdown").GetComponent<Dropdown>();
+
+                AGDropdown.options = actionGroupsOptions;
+                var canvas = AGDropdown.template.gameObject.AddOrGetComponent<Canvas>();
+                canvas.sortingLayerID = UIMasterController.Instance.appCanvas.sortingLayerID;
+
+                AGDropdown.value = actionGroupsOptions.FindIndex(t => t.text == bc.ag.ToString());
+                AGDropdown.onValueChanged.AddListener(v =>
+                    {
+                        bc.ag = stockActionGroups.FirstOrDefault(x => x.ToString() == actionGroupsOptions[v].text);
+                    });
+                AGDropdown.gameObject.SetActive (isToggleAGCommand || isWaitAGCommand);
+            }
+
+            var servoZoneHLG = commandLinePrefab.GetChild ("ServoCommandLineHLG");
+            if(isServoCommand)
+            {
+                var servoDropdown = servoZoneHLG.GetChild ("ServoDetails").GetChild ("ServoDropdown").GetComponent<Dropdown> ();
+
+                var allServos = new List<IRWrapper.IServo>();
+                var servosDropdownList = new List<Dropdown.OptionData> ();
+                foreach (IRWrapper.IControlGroup g in IRWrapper.IRController.ServoGroups) 
+                {
+                    allServos.AddRange (g.Servos);
+                }
+
+                foreach(var s in allServos)
+                {
+                    servosDropdownList.Add (new Dropdown.OptionData (s.Name));
+                }
+
+                servoDropdown.options = servosDropdownList;
+                var canvas = servoDropdown.template.gameObject.AddOrGetComponent<Canvas>();
+                canvas.sortingLayerID = UIMasterController.Instance.appCanvas.sortingLayerID;
+
+                servoDropdown.value = allServos.FindIndex (s => s == bc.servo);
+                servoDropdown.onValueChanged.AddListener (v => {
+                    bc.servo = allServos[v];    
+                });
+
+                var moveToInputField = servoZoneHLG.GetChild ("MoveDetails").GetChild ("MoveToPositionInputField").GetComponent<InputField> ();
+                moveToInputField.text = string.Format("{0:#0.00}", bc.position);
+                moveToInputField.onEndEdit.AddListener (v => {
+                    float tmp;
+                    if (float.TryParse(v, out tmp))
+                    {
+                        bc.position = tmp;
+                    }
+                });
+
+                var moveAtInputField = servoZoneHLG.GetChild ("MoveDetails").GetChild ("MoveToSpeedInputField").GetComponent<InputField> ();
+                moveAtInputField.text = string.Format("{0:#0.00}", bc.speedMultiplier);
+                moveAtInputField.onEndEdit.AddListener (v => {
+                    float tmp;
+                    if (float.TryParse(v, out tmp))
+                    {
+                        bc.speedMultiplier = tmp;
+                    }
+                });
+
+            }
+            servoZoneHLG.SetActive (isServoCommand);
+
+            if(isDelayCommand)
+            {
+                var delayInputField = commandLinePrefab.GetChild ("CommandDelayInputField").GetComponent<InputField> ();
+                delayInputField.text = string.Format("{0:#0.0}", bc.waitTime);
+                delayInputField.onEndEdit.AddListener (v => {
+                    float tmp;
+                    if (float.TryParse (v, out tmp)) {
+                        bc.waitTime = tmp;
+                    }
+                });
+                delayInputField.gameObject.SetActive (isDelayCommand);
+                commandLinePrefab.GetChild ("CommandDelayLabel").SetActive (isDelayCommand);
+            }
+
+            if(isRepeatCommand)
+            {
+                var gotoIndexInputField = commandLinePrefab.GetChild ("CommandGotoIndexInputField").GetComponent<InputField> ();
+                gotoIndexInputField.text = string.Format("{0:#0}", bc.gotoIndex);
+                gotoIndexInputField.onEndEdit.AddListener (v => {
+                    int tmp;
+                    if (int.TryParse (v, out tmp)) {
+                        bc.gotoIndex = tmp;
+                    }
+                });
+
+                var repeatInputField = commandLinePrefab.GetChild ("CommandRepeatInputField").GetComponent<InputField> ();
+                repeatInputField.text = string.Format("{0:#0}", bc.gotoCommandCounter);
+                repeatInputField.onEndEdit.AddListener (v => {
+                    int tmp;
+                    if (int.TryParse (v, out tmp)) {
+                        bc.gotoCommandCounter = tmp;
+                    }
+                });
+
+                gotoIndexInputField.gameObject.SetActive (isRepeatCommand);
+                commandLinePrefab.GetChild ("CommandRepeatLabel").SetActive (isRepeatCommand);
+                repeatInputField.gameObject.SetActive (isRepeatCommand);
+                commandLinePrefab.GetChild ("CommandRepeatLabel2").SetActive (isRepeatCommand);
+            }
+
+            var commandDeleteButton = commandLinePrefab.GetChild ("CommandDeleteButton").GetComponent<Button> ();
+            commandDeleteButton.onClick.AddListener (() => {
+                openSequence.Pause();
+                openSequence.commands.Remove(bc);
+                openSequence.Reset(); 
+                guiRebuildPending = true;
+            });
         }
 
         public void RebuildUI()

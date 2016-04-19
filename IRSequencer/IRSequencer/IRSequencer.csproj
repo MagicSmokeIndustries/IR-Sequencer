@@ -81,6 +81,8 @@
     <Compile Include="Gui\StateDropHandler.cs" />
     <Compile Include="Gui\SequenceDragHandler.cs" />
     <Compile Include="Gui\SequenceDropHandler.cs" />
+    <Compile Include="Gui\CommandDragHandler.cs" />
+    <Compile Include="Gui\CommandDropHandler.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
