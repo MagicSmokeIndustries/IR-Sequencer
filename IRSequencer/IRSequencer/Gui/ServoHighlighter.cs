@@ -24,6 +24,11 @@ namespace IRSequencer.Gui
                 servo.Highlight = false;
         }
 
+        public void OnDestroy()
+        {
+            if (servo != null)
+                servo.Highlight = false;
+        }
         
     }
 }

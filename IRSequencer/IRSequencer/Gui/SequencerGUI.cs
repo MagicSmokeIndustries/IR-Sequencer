@@ -103,9 +103,9 @@ namespace IRSequencer.Gui
         internal KSPActionGroup[] stockActionGroups;
         internal List<Dropdown.OptionData> actionGroupsOptions;
 
-        private Dictionary<SequencerState, GameObject> _stateUIControls;
-        private Dictionary<Sequence, GameObject> _sequenceUIControls; 
-        private Dictionary<BasicCommand, GameObject> _openSequenceCommandControls;
+        internal Dictionary<SequencerState, GameObject> _stateUIControls;
+        internal Dictionary<Sequence, GameObject> _sequenceUIControls; 
+        internal Dictionary<BasicCommand, GameObject> _openSequenceCommandControls;
 
         private static Vector2 commandProgressResetAnchor = new Vector2 (0f, 1f);
 
@@ -132,6 +132,43 @@ namespace IRSequencer.Gui
                     Logger.Log(string.Format("[GUI AddAppLauncherButton Exception, {0}", ex.Message), Logger.Level.Fatal);
                     DestroyAppLauncherButton ();
                     appLauncherButton = null;
+                }
+            }
+        }
+
+        public void CheckForServoSelection()
+        {
+            if (Input.GetMouseButtonDown(0) && (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl))) //Returns true during the frame the user pressed the given mouse button. 
+                                                                                                                          //It will not return true until the user has released the mouse button and pressed it again.
+            {
+                RaycastHit hit;
+                Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+
+                if (Physics.Raycast(ray, out hit))
+                {
+                    GameObject hitObject = hit.transform.gameObject;
+                    if (hitObject == null)
+                        return;
+
+                    Part part = hitObject.GetComponentInParent<Part>();
+                    if (part == null)
+                        return;
+
+                    for (int i=0; i< IRWrapper.IRController.ServoGroups.Count; i++)
+                    {
+                        var g = IRWrapper.IRController.ServoGroups[i];
+                        for (int j=0; j < g.Servos.Count; j++)
+                        {
+                            var s = g.Servos[j];
+                            if (s.HostPart == part)
+                            {
+                                selectedServoIndex = j;
+                                selectedGroupIndex = i;
+                                guiRebuildPending = true;
+                                return;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -212,6 +249,8 @@ namespace IRSequencer.Gui
                     {
                         UpdateOpenSequenceCommandProgress ();
                     }
+
+                    CheckForServoSelection();
                 }
 
                 //go through all modules and update UI controls accordingly
@@ -334,6 +373,22 @@ namespace IRSequencer.Gui
                 
                 var commandProgressBarTransform = commandUIControls.GetChild ("CommandProgressBar").GetComponent<RectTransform> ();
                 commandProgressBarTransform.anchorMax = new Vector2(progress, 1f);
+                
+                var commandStatusRawImage = commandUIControls.GetChild("CommandDragHandle").GetComponent<RawImage>();
+
+                if (bc.isActive)
+                {
+                    commandStatusRawImage.texture = UIAssetsLoader.iconAssets.Find(t => t.name == "IRWindowIndicator_Active");
+                }
+                else if (bc.isFinished)
+                {
+                    commandStatusRawImage.texture = UIAssetsLoader.iconAssets.Find(t => t.name == "IRWindowIndicator_Finished");
+                }
+                else
+                {
+                    commandStatusRawImage.texture = UIAssetsLoader.iconAssets.Find(t => t.name == "IRWindowIndicator_Idle");
+                }
+                
             }
         }
 
@@ -352,6 +407,9 @@ namespace IRSequencer.Gui
 
                 var commandProgressBarTransform = commandUIControls.GetChild ("CommandProgressBar").GetComponent<RectTransform> ();
                 commandProgressBarTransform.anchorMax = commandProgressResetAnchor;
+
+                var commandStatusRawImage = commandUIControls.GetChild("CommandDragHandle").GetComponent<RawImage>();
+                commandStatusRawImage.texture = UIAssetsLoader.iconAssets.Find(t => t.name == "icon_dragHandle");
             }
         }
 
@@ -719,6 +777,8 @@ namespace IRSequencer.Gui
             _controlWindow.GetChild("WindowTitle").AddComponent<PanelDragger>();
             _controlWindowFader = _controlWindow.AddComponent<CanvasGroupFader>();
 
+            _controlWindow.AddComponent<EditorLocker>();
+
             //start invisible to be toggled later
             if (!startSolid)
                 _controlWindow.GetComponent<CanvasGroup>().alpha = 0f;
@@ -1024,6 +1084,8 @@ namespace IRSequencer.Gui
             _editorWindow.GetChild("WindowTitle").AddComponent<PanelDragger>();
             _editorWindowFader = _editorWindow.AddComponent<CanvasGroupFader>();
 
+            _editorWindow.AddComponent<EditorLocker>();
+
             //start invisible to be toggled later
             if (!startSolid)
                 _editorWindow.GetComponent<CanvasGroup>().alpha = 0f;
@@ -1090,7 +1152,7 @@ namespace IRSequencer.Gui
             });
 
             var moveAtInputField = moveServoDetails.GetChild("MoveToHLG").GetChild("MoveToSpeedInputField").GetComponent<InputField>();
-            moveAtInputField.text = string.Format("{0:#0.00}", moveAtValue);
+            moveAtInputField.text = string.Format("{0:#0.0}", moveAtValue);
             moveAtInputField.onEndEdit.AddListener(v =>
             {
                 float tmp = 0f;
@@ -1407,6 +1469,7 @@ namespace IRSequencer.Gui
             var dragHandler = commandDragHandle.AddComponent<CommandDragHandler> ();
             dragHandler.mainCanvas = UIMasterController.Instance.appCanvas;
             dragHandler.draggedItem = commandLinePrefab;
+            dragHandler.linkedCommand = bc;
 
             var commandLineNumberText = commandLinePrefab.GetChild ("CommandNumberLabel").GetComponent<Text> ();
             commandLineNumberText.text = string.Format ("{0:#0}", openSequence.commands.FindIndex (c => c == bc));
@@ -1648,7 +1711,7 @@ namespace IRSequencer.Gui
                 _settingsWindowFader.FadeTo(0f, 0.1f);
                 _settingsWindow.SetActive(false);
             }
-            
+            EditorLocker.EditorLock(false);
         }
 
         private void CloseEditorWindow()

@@ -66,6 +66,7 @@
     <Compile Include="Gui\HoldButton.cs" />
     <Compile Include="Gui\PanelDragger.cs" />
     <Compile Include="Gui\PanelResizer.cs" />
+    <Compile Include="Gui\EditorLocker.cs" />
     <Compile Include="Gui\ServoHighlighter.cs" />
     <Compile Include="Gui\UIAnimationHelper.cs" />
     <Compile Include="Gui\UIAssetsLoader.cs" />

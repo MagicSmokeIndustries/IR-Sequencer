@@ -36,15 +36,22 @@ namespace IRSequencer.Gui
 
             var bc = dragHandler.linkedCommand;
             int insertAt = dragHandler.placeholder.transform.GetSiblingIndex();
+            if (bc == null)
+                return;
 
             SequencerGUI.Instance.openSequence.commands.Remove(bc);
             SequencerGUI.Instance.openSequence.commands.Insert(insertAt, bc);
 
-            //SequencerGUI.guiRebuildPending = true;
+            //change the line numbers in lables after drop
+            for (int i = 0; i < SequencerGUI.Instance.openSequence.commands.Count; i++)
+            {
+                var commandUIControls = SequencerGUI.Instance._openSequenceCommandControls[SequencerGUI.Instance.openSequence.commands[i]];
+                if (!commandUIControls)
+                    continue;
 
-            /*var commandNumberText = dragHandler.draggedItem.GetChild("CommandNumberLabel").GetComponent<Text>();
-            commandNumberText.text = string.Format("{0:#0}", SequencerGUI.Instance.openSequence.commands.FindIndex(c => c == bc));
-            */
+                var commandLineNumberText = commandUIControls.GetChild("CommandNumberLabel").GetComponent<Text>();
+                commandLineNumberText.text = string.Format("{0:#0}", i);
+            }
             Logger.Log("[CommandDropHandler] onCommandDrop finished");
 
         }

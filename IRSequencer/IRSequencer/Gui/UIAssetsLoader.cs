@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace IRSequencer.Gui
 {
-    [KSPAddon(KSPAddon.Startup.MainMenu, false)]
+    [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class UIAssetsLoader : MonoBehaviour
     {
         private AssetBundle IRAssetBundle;
@@ -109,7 +109,6 @@ namespace IRSequencer.Gui
                 if (sprites[i] != null)
                 {
                     spriteAssets.Add(sprites[i]);
-                    Logger.Log("Successfully loaded Sprite " + sprites[i].name);
                 }
             }
 
@@ -121,10 +120,13 @@ namespace IRSequencer.Gui
                 if (icons[i] != null)
                 {
                     iconAssets.Add(icons[i]);
-                    Logger.Log("Successfully loaded texture " + icons[i].name);
                 }
-
             }
+
+            if(allPrefabsReady)
+                Logger.Log("Successfully loaded all prefabs from AssetBundle");
+            else
+                Logger.Log("Some prefabs failed to load, bundle = " + IRAssetBundle.name);
         }
 
         public void LoadBundleFromDisk(string path)
@@ -133,9 +135,8 @@ namespace IRSequencer.Gui
 
             LoadBundleAssets();
 
-            IRAssetBundle.Unload(false);
+            //had to move bundle unloading further down in time due to unexplained and unreproducable on my PC issues for some users
         }
-
 
         public void Start()
         {
@@ -153,6 +154,12 @@ namespace IRSequencer.Gui
 
             Logger.Log("Loading bundles from filePath: " + filePath, Logger.Level.Debug);
             LoadBundleFromDisk(filePath + "ir_ui_objects.ksp");
+        }
+
+        public void OnDestroy()
+        {
+            Logger.Log("Unloading bundle", Logger.Level.Debug);
+            IRAssetBundle.Unload(false);
         }
     }
 }

@@ -60,6 +60,8 @@ namespace IRSequencer.Gui
                 SequencerGUI.Instance.ResetOpenSequenceCommandProgress ();
             }
 
+            //don't forget to remove Repeat placeholders from dropzone
+
             dropZone = draggedItem.transform.parent;
             startingSiblingIndex = draggedItem.transform.GetSiblingIndex();
 
