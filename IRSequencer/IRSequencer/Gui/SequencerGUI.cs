@@ -103,12 +103,12 @@ namespace IRSequencer.Gui
         internal KSPActionGroup[] stockActionGroups;
         internal List<Dropdown.OptionData> actionGroupsOptions;
 
-        private Dictionary<ModuleSequencer, GameObject> _modulesUIControls;
-        private Dictionary<SequencerState, GameObject> _statesUIControls;
-        private Dictionary<Sequence, GameObject> _sequencesUIControls;
-
+        private Dictionary<SequencerState, GameObject> _stateUIControls;
+        private Dictionary<Sequence, GameObject> _sequenceUIControls; 
         private Dictionary<BasicCommand, GameObject> _openSequenceCommandControls;
-        
+
+        private static Vector2 commandProgressResetAnchor = new Vector2 (0f, 1f);
+
         private void AddAppLauncherButton()
         {
             if (appLauncherButton == null && ApplicationLauncher.Ready && ApplicationLauncher.Instance != null)
@@ -152,9 +152,6 @@ namespace IRSequencer.Gui
             }
             else
             {
-                if (guiRebuildPending && GUIEnabled)
-                    RebuildUI();
-                
                 //requires ServoGroups to be parsed
                 if (!IRWrapper.APIReady)
                 {
@@ -186,13 +183,13 @@ namespace IRSequencer.Gui
                 }
                 else if (HighLogic.LoadedSceneIsEditor)
                 {
-                    if (EditorLogic.fetch != null)
+                    if (GUIEnabled && EditorLogic.fetch != null)
                     {
                         var s = EditorLogic.fetch.ship;
                         if (s != null)
                         {
                             var modulePart = s.Parts.Find(p => p.FindModuleImplementing<ModuleSequencer>() != null);
-                            if (GUIEnabled && modulePart == null)
+                            if (modulePart == null)
                             {
                                 ScreenMessages.PostScreenMessage("Sequencer module is required (add probe core).", 3, ScreenMessageStyle.UPPER_CENTER);
                                 GUIEnabled = false;
@@ -203,9 +200,160 @@ namespace IRSequencer.Gui
                     }
                 }
 
+                if (!GUIEnabled)
+                    return;
+
+                if (guiRebuildPending && GUIEnabled)
+                    RebuildUI();
+                
+                if(openSequence!=null)
+                {
+                    if(openSequence.isActive || openSequence.IsPaused)
+                    {
+                        UpdateOpenSequenceCommandProgress ();
+                    }
+                }
+
+                //go through all modules and update UI controls accordingly
+                if (sequencers == null || sequencers.Count == 0 
+                    || _stateUIControls== null || _stateUIControls.Count == 0)
+                    return;
+
+                for (int i=0; i<sequencers.Count; i++)
+                {
+                    var module = sequencers [i];
+                    for(int j=0; j<module.states.Count; j++)
+                    {
+                        var state = module.states [j];
+                        if (!_stateUIControls.ContainsKey (state))
+                        {
+                            Logger.Log ("Could not find state UI controls " + state.stateName);
+                            continue;
+                        }
+                            
+                        var stateUIControls = _stateUIControls [state];
+
+                        var stateStatusImage = stateUIControls.GetChild ("SequencerStateControlsHLG").GetChild ("SequencerStateStatusHandle").GetComponent<RawImage> ();
+
+                        if(module.currentState.stateID == state.stateID)
+                        {
+                            stateStatusImage.texture = UIAssetsLoader.iconAssets.Find (t => t.name == "IRWindowIndicator_Active");
+                        }
+                        else
+                        {
+                            stateStatusImage.texture = UIAssetsLoader.iconAssets.Find (t => t.name == "icon_groupdraghandle");
+                        }
+                    }
+
+                    //now loop through sequences
+                    for(int j=0; j<module.sequences.Count; j++)
+                    {
+                        var sq = module.sequences [j];
+                        if (!_sequenceUIControls.ContainsKey (sq))
+                        {
+                            Logger.Log ("Could not find sequence UI controls " + sq.name);
+                            continue;
+                        }
+                            
+                        var sequenceUIControls = _sequenceUIControls [sq];
+
+                        var sequenceStatusImage = sequenceUIControls.GetChild ("SequenceStatusRawImage").GetComponent<RawImage> ();
+
+                        if(sq.isActive)
+                        {
+                            sequenceStatusImage.texture = UIAssetsLoader.iconAssets.Find (t => t.name == "IRWindowIndicator_Active");
+                        }
+                        else if(sq.isFinished)
+                        {
+                            sequenceStatusImage.texture = UIAssetsLoader.iconAssets.Find (t => t.name == "IRWindowIndicator_Finished");
+                        }
+                        else
+                        {
+                            sequenceStatusImage.texture = UIAssetsLoader.iconAssets.Find (t => t.name == "IRWindowIndicator_Idle");
+                        }
+
+                        if (sq.IsPaused)
+                        {
+                            sequenceStatusImage.texture = UIAssetsLoader.iconAssets.Find (t => t.name == "IRWindowIndicator_Paused");
+                        }
+
+                        if(sq.isLocked)
+                        {
+                            sequenceStatusImage.texture = UIAssetsLoader.iconAssets.Find (t => t.name == "IRWindowIndicator_Locked");
+                        }
+                        
+                        var sequenceStartToggle = sequenceUIControls.GetChild("SequenceStartToggle").GetComponent<Toggle>();
+
+                        if (sequenceStartToggle.isOn != sq.isActive)
+                        {
+                            sequenceStartToggle.isOn = sq.isActive;
+                            //sequenceStartToggle.onValueChanged.Invoke (sq.isActive);
+                        }
+
+                        var sequenceLoopToggle = sequenceUIControls.GetChild("SequenceLoopToggle").GetComponent<Toggle>();
+                        if (sq.isLooped != sequenceLoopToggle.isOn)
+                        {
+                            //sequenceLoopToggle.isOn = sq.isLooped;
+                            sequenceLoopToggle.onValueChanged.Invoke (sq.isLooped);
+                        }
+                            
+
+
+                    }
+                }
             }
         }
 
+        internal void UpdateOpenSequenceCommandProgress()
+        {
+            //first animate the progressbar
+            for (int i=0; i< openSequence.commands.Count; i++)
+            {
+                var bc = openSequence.commands [i];
+
+                float progress = 0f;
+
+                if(bc.isFinished)
+                {
+                    progress = 1f;
+                }
+                else if(bc.servo != null)
+                {
+                    if (bc.servo.MaxPosition - bc.servo.MinPosition > 0.01f)
+                        progress = 1f - Mathf.Abs(bc.position - bc.servo.Position) / (bc.servo.MaxPosition - bc.servo.MinPosition);
+                    else
+                        progress = 1f;
+                }
+                else if(bc.waitTime >0f)
+                {
+                    progress = Mathf.Clamp((UnityEngine.Time.time - bc.timeStarted) / bc.waitTime, 0f, 1f);
+                }
+                var commandUIControls = _openSequenceCommandControls [bc];
+                if (!commandUIControls)
+                    continue;
+                
+                var commandProgressBarTransform = commandUIControls.GetChild ("CommandProgressBar").GetComponent<RectTransform> ();
+                commandProgressBarTransform.anchorMax = new Vector2(progress, 1f);
+            }
+        }
+
+        internal void ResetOpenSequenceCommandProgress()
+        {
+            if (openSequence == null)
+                return;
+
+            for (int i=0; i< openSequence.commands.Count; i++)
+            {
+                var bc = openSequence.commands [i];
+
+                var commandUIControls = _openSequenceCommandControls [bc];
+                if (!commandUIControls)
+                    continue;
+
+                var commandProgressBarTransform = commandUIControls.GetChild ("CommandProgressBar").GetComponent<RectTransform> ();
+                commandProgressBarTransform.anchorMax = commandProgressResetAnchor;
+            }
+        }
 
         public void ShowControlWindow()
         {
@@ -386,6 +534,8 @@ namespace IRSequencer.Gui
                 _settingsWindow = null;
             }
 
+            _stateUIControls = null;
+            _sequenceUIControls = null;
             _openSequenceCommandControls = null;
 
             GameEvents.onShowUI.Remove(OnShowUI);
@@ -630,10 +780,12 @@ namespace IRSequencer.Gui
                     //add gui code
                     guiRebuildPending = true;
                 });
-            //there will be more fields here eventually
+            sequencerAddStateButton.gameObject.SetActive (guiControlWindowEditMode);
 
             var statesArea = sequencerLinePrefab.GetChild("SequencerStatesVLG");
             statesArea.AddComponent<StateDropHandler> ();
+
+
 
             for(int i=0; i<module.states.Count; i++)
             {
@@ -643,6 +795,8 @@ namespace IRSequencer.Gui
                 stateLine.transform.SetParent(statesArea.transform, false);
 
                 InitSequencerStatePrefab(stateLine, st, module);
+
+                _stateUIControls.Add (st, stateLine);
             }
         }
 
@@ -710,6 +864,7 @@ namespace IRSequencer.Gui
 
                 InitSequenceLinePrefab(sequenceLine, sq, module);
 
+                _sequenceUIControls.Add (sq, sequenceLine);
             }
         }
 
@@ -795,8 +950,13 @@ namespace IRSequencer.Gui
             var sequenceStopButton = sequenceLinePrefab.GetChild("SequenceStopButton").GetComponent<Button>();
             sequenceStopButton.onClick.AddListener(() =>
                 {
+                    sequenceStartToggle.onValueChanged.Invoke(false);
+
                     if (!s.isLocked)
                         s.Reset();
+
+                    if(openSequence!= null && openSequence.sequenceID == s.sequenceID)
+                        ResetOpenSequenceCommandProgress();
                 });
 
             var sequenceLoopToggle = sequenceLinePrefab.GetChild("SequenceLoopToggle").GetComponent<Toggle>();
@@ -1168,9 +1328,11 @@ namespace IRSequencer.Gui
 
             var sequenceStopButton = footerButtonsZone.GetChild("SequenceStopButton").GetComponent<Button>();
             sequenceStopButton.onClick.AddListener(() =>
-            {
-                openSequence.Reset();
-            });
+                {
+                    sequenceStartToggle.onValueChanged.Invoke(false);
+                    openSequence.Reset();
+                    ResetOpenSequenceCommandProgress();
+                });
 
             var sequenceStepButton = footerButtonsZone.GetChild("SequenceStepButton").GetComponent<Button>();
             sequenceStepButton.onClick.AddListener(() =>
@@ -1214,13 +1376,14 @@ namespace IRSequencer.Gui
             bool isRepeatCommand = (bc.gotoIndex != -1);
 
             var backgroundImage = commandLinePrefab.GetComponent<Image> ();
+            var progressBarImage = commandLinePrefab.GetChild ("CommandProgressBar").GetComponent<Image> ();
 
             if(isServoCommand || isToggleAGCommand)
-                backgroundImage.sprite = UIAssetsLoader.spriteAssets.Find (i => i.name == "IRWindowButtonGreen");
+                backgroundImage.sprite = progressBarImage.sprite = UIAssetsLoader.spriteAssets.Find (i => i.name == "IRWindowButtonGreen");           
             else if(isRepeatCommand)
-                backgroundImage.sprite = UIAssetsLoader.spriteAssets.Find (i => i.name == "IRWindowButtonYellow");
+                backgroundImage.sprite = progressBarImage.sprite = UIAssetsLoader.spriteAssets.Find (i => i.name == "IRWindowButtonYellow");
             else
-                backgroundImage.sprite = UIAssetsLoader.spriteAssets.Find (i => i.name == "IRWindowButtonRed");
+                backgroundImage.sprite = progressBarImage.sprite = UIAssetsLoader.spriteAssets.Find (i => i.name == "IRWindowButtonRed");
 
             var commandDragHandle = commandLinePrefab.GetChild ("CommandDragHandle");
             var commandStatusRawImage = commandDragHandle.GetComponent<RawImage> ();
@@ -1421,6 +1584,15 @@ namespace IRSequencer.Gui
                 SequencerSettingsWindowPosition = _settingsWindow.transform.position;
             //should be called by ServoController when required (Vessel changed and such).
 
+            if (_stateUIControls == null)
+                _stateUIControls = new Dictionary<SequencerState, GameObject> ();
+            else
+                _stateUIControls.Clear ();
+
+            if (_sequenceUIControls == null)
+                _sequenceUIControls = new Dictionary<Sequence, GameObject> ();
+            else
+                _sequenceUIControls.Clear ();
 
             if (UIAssetsLoader.allPrefabsReady && _settingsWindow == null)
             {

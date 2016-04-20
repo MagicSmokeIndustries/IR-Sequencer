@@ -52,7 +52,14 @@ namespace IRSequencer.Gui
         {
             if(draggedItem == null)
                 draggedItem = this.transform.parent.gameObject;
-            
+
+            if(SequencerGUI.Instance.openSequence.isActive)
+            {
+                SequencerGUI.Instance.openSequence.Pause ();
+                SequencerGUI.Instance.openSequence.Reset ();
+                SequencerGUI.Instance.ResetOpenSequenceCommandProgress ();
+            }
+
             dropZone = draggedItem.transform.parent;
             startingSiblingIndex = draggedItem.transform.GetSiblingIndex();
 

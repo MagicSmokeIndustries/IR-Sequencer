@@ -141,7 +141,7 @@ namespace IRSequencer.Gui
         {
             var assemblyFile = Assembly.GetExecutingAssembly().Location;
             //we will use same path for AssetBundles as IR and share some assets
-            var bundlePath = "file://" + assemblyFile.Replace(new FileInfo(assemblyFile).Name, "").Replace("\\","/") + "../../AssetBundles/";
+            //var bundlePath = "file://" + assemblyFile.Replace(new FileInfo(assemblyFile).Name, "").Replace("\\","/") + "../../AssetBundles/";
             var filePath = assemblyFile.Replace(new FileInfo(assemblyFile).Name, "") + "../../AssetBundles/";
 
             //Logger.Log("Loading bundles from BundlePath: " + bundlePath, Logger.Level.Debug);
