@@ -257,7 +257,7 @@ namespace IRSequencer.Gui
                 
                 if (openSequence != null)
                 {
-                    if (openSequence.isActive || openSequence.IsPaused)
+                    if (openSequence.isActive || openSequence.isFinished || openSequence.isWaiting)
                     {
                         UpdateOpenSequenceCommandProgress();
                     }
@@ -377,7 +377,11 @@ namespace IRSequencer.Gui
 
                 float progress = 0f;
 
-                if (bc.isFinished)
+                if (bc.gotoIndex != -1)
+                {
+                    progress = (bc.gotoCommandCounter == -1) ? 0f : 1f - ((float) bc.gotoCounter / (float) bc.gotoCommandCounter);
+                }
+                else if (bc.isFinished)
                 {
                     progress = 1f;
                 }
@@ -392,6 +396,7 @@ namespace IRSequencer.Gui
                 {
                     progress = Mathf.Clamp((UnityEngine.Time.time - bc.timeStarted) / bc.waitTime, 0f, 1f);
                 }
+                
                 var commandUIControls = _openSequenceCommandControls[bc];
                 if (!commandUIControls)
                     continue;
