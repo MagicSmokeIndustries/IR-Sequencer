@@ -40,7 +40,7 @@ namespace IRSequencer.Gui
 
         public virtual float GetDraggedItemHeight()
         {
-            var hlg = draggedItem.GetComponent<HorizontalLayoutGroup> ();
+            var hlg = draggedItem.GetComponent<HorizontalLayoutGroup>();
 
             if (hlg == null)
                 return 26;
@@ -50,19 +50,25 @@ namespace IRSequencer.Gui
 
         public virtual void OnBeginDrag(PointerEventData eventData)
         {
-            if(draggedItem == null)
+            if (draggedItem == null)
                 draggedItem = this.transform.parent.gameObject;
 
-            if(SequencerGUI.Instance.openSequence.isActive)
+            if (SequencerGUI.Instance.openSequence.isActive)
             {
-                SequencerGUI.Instance.openSequence.Pause ();
-                SequencerGUI.Instance.openSequence.Reset ();
-                SequencerGUI.Instance.ResetOpenSequenceCommandProgress ();
+                SequencerGUI.Instance.openSequence.Pause();
+                SequencerGUI.Instance.openSequence.Reset();
+                SequencerGUI.Instance.ResetOpenSequenceCommandProgress();
             }
 
             //don't forget to remove Repeat placeholders from dropzone
-
             dropZone = draggedItem.transform.parent;
+            var repeatPlaceholder = dropZone.gameObject.GetChild("RepeatCommandPlaceholder").transform;
+            if (repeatPlaceholder)
+            {
+                repeatPlaceholder.SetAsLastSibling();
+                repeatPlaceholder.gameObject.SetActive(false);
+            }
+
             startingSiblingIndex = draggedItem.transform.GetSiblingIndex();
 
             RectTransformUtility.ScreenPointToLocalPointInRectangle(draggedItem.transform as RectTransform, eventData.position, eventData.pressEventCamera, out startingPosition);
@@ -104,12 +110,12 @@ namespace IRSequencer.Gui
                 return;
             
             var currentSiblingIndex = placeholder.transform.GetSiblingIndex();
-            var newSiblingIndex = dropZone.childCount-1;
+            var newSiblingIndex = dropZone.childCount - 1;
 
-            for (int i=0; i< dropZone.childCount; i++)
+            for (int i = 0; i < dropZone.childCount; i++)
             {
                 var child = dropZone.GetChild(i);
-                if(localPointerPosition.y > child.position.y)
+                if (localPointerPosition.y > child.position.y)
                 {
                     newSiblingIndex = i;
 
@@ -138,7 +144,7 @@ namespace IRSequencer.Gui
 
             Vector3 newPosition = new Vector3(p.position.x, p.position.y - startingHeight + PLACEHOLDER_MIN_HEIGHT, p.position.z);
 
-            if(p.sizeDelta.y > PLACEHOLDER_MIN_HEIGHT)
+            if (p.sizeDelta.y > PLACEHOLDER_MIN_HEIGHT)
                 newPosition = p.position;
 
             animationHelper.AnimatePosition(t.position, newPosition, 0.07f);
@@ -148,14 +154,14 @@ namespace IRSequencer.Gui
         protected void OnEndDragAnimateEnd()
         {
             var cg = draggedItem.GetComponent<CanvasGroup>();
-            if (cg!= null)
+            if (cg != null)
             {
                 cg.blocksRaycasts = true;
                 Destroy(cg);
             }
 
             var sequenceDropHandler = dropZone.GetComponent<CommandDropHandler>();
-            if ( sequenceDropHandler != null)
+            if (sequenceDropHandler != null)
             {
                 Logger.Log("[SequenceDragHandler] No SequenceDropHandler on dropzone object");
                 sequenceDropHandler.onCommandDrop(this);

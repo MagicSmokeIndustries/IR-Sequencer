@@ -35,7 +35,15 @@ namespace IRSequencer.Gui
                 return;
 
             var bc = dragHandler.linkedCommand;
+
+            var repeatPlaceholder = dragHandler.dropZone.gameObject.GetChild("RepeatCommandPlaceholder").transform;
+
             int insertAt = dragHandler.placeholder.transform.GetSiblingIndex();
+
+            //repeat placeholder is supposed to be last sibling, we need to ignore it
+            if (insertAt >= repeatPlaceholder.GetSiblingIndex())
+                insertAt--;
+
             if (bc == null)
                 return;
 
@@ -45,12 +53,24 @@ namespace IRSequencer.Gui
             //change the line numbers in lables after drop
             for (int i = 0; i < SequencerGUI.Instance.openSequence.commands.Count; i++)
             {
-                var commandUIControls = SequencerGUI.Instance._openSequenceCommandControls[SequencerGUI.Instance.openSequence.commands[i]];
+                var c = SequencerGUI.Instance.openSequence.commands[i];
+                var commandUIControls = SequencerGUI.Instance._openSequenceCommandControls[c];
                 if (!commandUIControls)
                     continue;
 
                 var commandLineNumberText = commandUIControls.GetChild("CommandNumberLabel").GetComponent<Text>();
                 commandLineNumberText.text = string.Format("{0:#0}", i);
+
+                if(c.gotoIndex != -1)
+                {
+                    //need to reposition command's placeholder
+                    if (repeatPlaceholder)
+                    {
+                        repeatPlaceholder.SetSiblingIndex(c.gotoIndex);
+                        repeatPlaceholder.gameObject.SetActive(true);
+                    }
+                        
+                }
             }
             Logger.Log("[CommandDropHandler] onCommandDrop finished");
 
