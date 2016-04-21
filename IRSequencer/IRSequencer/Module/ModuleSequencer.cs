@@ -25,6 +25,9 @@ namespace IRSequencer.Module
         [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = false, guiName = "lastState")]
         public string lastStateID = "";
 
+        [KSPField(isPersistant = true, guiActive = true, guiActiveEditor = true, guiName = "IRS Locked?")]
+        public bool isLocked = false;
+
         private float lastKeyPressedTime = 0f;
         private const float keyCooldown = 0.2f;
 
@@ -47,13 +50,13 @@ namespace IRSequencer.Module
             sequences = new List<Sequence>();
             sequences.Clear();
 
-            states = new List<SequencerState> ();
-            states.Clear ();
+            states = new List<SequencerState>();
+            states.Clear();
 
-            var s = new SequencerState ();
+            var s = new SequencerState();
             s.stateName = "Default";
 
-            states.Add (s);
+            states.Add(s);
 
             currentState = states[0];
         }
@@ -68,13 +71,13 @@ namespace IRSequencer.Module
                 sequences = new List<Sequence>();
                 sequences.Clear();
 
-                states = new List<SequencerState> ();
-                states.Clear ();
+                states = new List<SequencerState>();
+                states.Clear();
 
-                var s = new SequencerState ();
+                var s = new SequencerState();
                 s.stateName = "Default";
 
-                states.Add (s);
+                states.Add(s);
 
                 currentState = states[0];
 
@@ -83,7 +86,7 @@ namespace IRSequencer.Module
 
         }
 
-        public void SaveData ()
+        public void SaveData()
         {
             //requires ServoGroups to be parsed
             if (!IRWrapper.APIReady)
@@ -93,28 +96,28 @@ namespace IRSequencer.Module
                 return;
 
             var message = "";
-            foreach(Sequence s in sequences)
+            foreach (Sequence s in sequences)
             {
-                message += s.Serialize () + "$";
+                message += s.Serialize() + "$";
             }
 
             serializedSequences = message;
 
             message = "";
 
-            foreach(SequencerState s in states)
+            foreach (SequencerState s in states)
             {
-                message += s.Serialize () + "$";
+                message += s.Serialize() + "$";
             }
 
             serializedStates = message;
 
-            if(currentState != null)
+            if (currentState != null)
                 lastStateID = currentState.stateID.ToString();
 
         }
 
-        public void LoadData ()
+        public void LoadData()
         {
             //requires ServoGroups to be parsed
             if (!IRWrapper.APIReady)
@@ -128,12 +131,12 @@ namespace IRSequencer.Module
                 return;
 
 
-            states.Clear ();
-            sequences.Clear ();
+            states.Clear();
+            sequences.Clear();
 
             //first load the states
 
-            var chunks = serializedStates.Split ('$');
+            var chunks = serializedStates.Split('$');
 
             int counter = 0;
             foreach (string serializedState in chunks)
@@ -147,26 +150,26 @@ namespace IRSequencer.Module
             }
 
             //there should always be at least one state, a default state
-            if(states.Count == 0)
+            if (states.Count == 0)
             {
-                var defState = new SequencerState ();
+                var defState = new SequencerState();
                 defState.stateName = "Default";
-                states.Add (defState);
+                states.Add(defState);
 
                 Logger.Log(string.Format("Failed loading States, creating Default State"), Logger.Level.Debug);
             }
             else
                 Logger.Log(string.Format("Successfully Loaded {0} States", counter), Logger.Level.Debug);
 
-            currentState = states.Find (x => x.stateID.ToString() == lastStateID);
+            currentState = states.Find(x => x.stateID.ToString() == lastStateID);
 
             //if we could not find current state revert to first available state
-            if(currentState == null)
+            if (currentState == null)
             {
-                currentState = states [0];
+                currentState = states[0];
             }
 
-            chunks = serializedSequences.Split ('$');
+            chunks = serializedSequences.Split('$');
 
             counter = 0;
             foreach (string serializedSequence in chunks)
@@ -191,14 +194,14 @@ namespace IRSequencer.Module
                 st = null;
                 return false;
             }
-            var chunks = s.Split (':');
-            if (chunks.Count () < 2)
+            var chunks = s.Split(':');
+            if (chunks.Count() < 2)
             {
                 st = null;
                 return false;
             }
-            st = new SequencerState (chunks[0]);
-            st.stateName = chunks [1];
+            st = new SequencerState(chunks[0]);
+            st.stateName = chunks[1];
 
             return true;
         }
@@ -242,7 +245,7 @@ namespace IRSequencer.Module
                     seq.keyShortcut = t[2];
                 }
 
-                if(t.Length > 3)
+                if (t.Length > 3)
                 {
                     if (!bool.TryParse(t[3], out seq.autoStart))
                     {
@@ -250,7 +253,7 @@ namespace IRSequencer.Module
                     }
                 }
                 //now find startState and endState by IDs
-                if(t.Length > 5)
+                if (t.Length > 5)
                 {
                     var startStateID = t[4];
                     var endStateID = t[5];
@@ -260,10 +263,10 @@ namespace IRSequencer.Module
                 }
 
                 //sequencer must have at least one state, so if nothing found, default states to it
-                if(seq.startState == null) 
+                if (seq.startState == null)
                     seq.startState = states[0];
 
-                if(seq.endState == null)
+                if (seq.endState == null)
                     seq.endState = states[0];
 
                 var seqCommands = s.Substring(s.IndexOf('<') + 1, s.IndexOf('>') - seqName.Length - 1);
@@ -273,7 +276,7 @@ namespace IRSequencer.Module
                 var chunks = seqCommands.Split(':');
 
                 Logger.Log("TryParseSequence, chunks.length=" + chunks.Length, Logger.Level.Debug);
-                for (int i = 0; i < chunks.Length; i++ )
+                for (int i = 0; i < chunks.Length; i++)
                 {
                     BasicCommand bc;
                     if (TryParseBasicCommand(chunks[i], allServos, out bc))
@@ -292,7 +295,7 @@ namespace IRSequencer.Module
 
         public bool TryParseBasicCommand(string s, List<IRWrapper.IServo> allServos, out BasicCommand bc)
         {
-            var chunks = s.Split ('|');
+            var chunks = s.Split('|');
 
             if (chunks.Length < 8)
             {
@@ -306,7 +309,7 @@ namespace IRSequencer.Module
             if (chunks[0] != "null")
             {
                 uint servoUID;
-                if (!uint.TryParse (chunks [0], out servoUID)) 
+                if (!uint.TryParse(chunks[0], out servoUID))
                 {
                     bc = null;
                     return false;
@@ -352,20 +355,20 @@ namespace IRSequencer.Module
                 return false;
             }
 
-            if (!int.TryParse (chunks [6], out bc.gotoCommandCounter)) 
+            if (!int.TryParse(chunks[6], out bc.gotoCommandCounter))
             {
                 bc = null;
                 return false;
-            } 
+            }
             else
                 bc.gotoCounter = bc.gotoCommandCounter;
 
             int temp = 0;
-            if (!int.TryParse (chunks [7], out temp)) 
+            if (!int.TryParse(chunks[7], out temp))
             {
                 bc = null;
                 return false;
-            } 
+            }
             else
                 bc.ag = (KSPActionGroup)temp;
 
@@ -399,23 +402,23 @@ namespace IRSequencer.Module
 
         protected void CheckInputs()
         {
-            //do checks
-            if (sequences == null)
+            //do sanity checks and halt if locked
+            if (sequences == null || isLocked)
                 return;
 
 
             bool keyTriggered = false;
-            for(int i=0; i<sequences.Count; i++)
+            for (int i = 0; i < sequences.Count; i++)
             {
-                var s = sequences [i];
-                if(KeyPressed(s.keyShortcut))
+                var s = sequences[i];
+                if (KeyPressed(s.keyShortcut))
                 {
-                    if (Time.time > lastKeyPressedTime  + keyCooldown) 
+                    if (Time.time > lastKeyPressedTime + keyCooldown)
                     {
-                        if (s.isActive) 
-                            s.Pause ();
+                        if (s.isActive)
+                            s.Pause();
                         else
-                            s.Start (currentState);
+                            s.Start(currentState);
 
                         keyTriggered = true;
                     }
@@ -428,7 +431,47 @@ namespace IRSequencer.Module
 
         public void Update()
         {
-            CheckInputs ();
+            CheckInputs();
+        }
+
+        //the following 3 functions are here to provide some utility for possible hook-ins from other mods.
+        public void StartSequence(Guid sID)
+        {
+            if (sequences == null)
+                return;
+
+            var s = sequences.Find(sq => sq.sequenceID == sID);
+
+            if (s == null)
+                return;
+
+            s.Start(currentState);
+        }
+
+        public void PauseSequence(Guid sID)
+        {
+            if (sequences == null)
+                return;
+
+            var s = sequences.Find(sq => sq.sequenceID == sID);
+
+            if (s == null)
+                return;
+
+            s.Pause();
+        }
+
+        public void ResetSequence(Guid sID)
+        {
+            if (sequences == null)
+                return;
+
+            var s = sequences.Find(sq => sq.sequenceID == sID);
+
+            if (s == null)
+                return;
+
+            s.Reset();
         }
 
         /// <summary>
@@ -456,38 +499,43 @@ namespace IRSequencer.Module
                 lastSavedUT = Time.time;
             }
 
+            //if the sequencer is locked, there is no need to process any sequences.
+            if (isLocked)
+                return;
+
             var activeSequences = sequences.FindAll(s => s.isActive);
 
-            if (activeSequences.Count == 0) 
+            if (activeSequences.Count == 0)
             {
                 //unlock all sequences as there are none active
-                sequences.ForEach (((Sequence s) => s.isLocked = false));
+                sequences.ForEach(((Sequence s) => s.isLocked = false));
             }
 
-            if(activeSequences.Count(s => s.endState != s.startState) == 0)
+            if (activeSequences.Count(s => s.endState != s.startState) == 0)
             {
                 //the only sequences that run are ones that do not change the state, so we can unlock all sequences
-                sequences.ForEach (((Sequence s) => s.isLocked = false));
+                sequences.ForEach(((Sequence s) => s.isLocked = false));
             }
 
             foreach (Sequence sq in activeSequences)
             {
-                if (sq.commands == null) continue;
+                if (sq.commands == null)
+                    continue;
 
-                var affectedServos = new List <IRWrapper.IServo> ();
-                sq.commands.FindAll (s => s.servo != null).ForEach ((BasicCommand c) => affectedServos.Add (c.servo));
+                var affectedServos = new List <IRWrapper.IServo>();
+                sq.commands.FindAll(s => s.servo != null).ForEach((BasicCommand c) => affectedServos.Add(c.servo));
 
-                if (affectedServos.Any ()) 
+                if (affectedServos.Any())
                 {
-                    sequences.FindAll (s => s.commands.Any (c => affectedServos.Contains (c.servo))).ForEach ((Sequence seq) => seq.isLocked = true);
+                    sequences.FindAll(s => s.commands.Any(c => affectedServos.Contains(c.servo))).ForEach((Sequence seq) => seq.isLocked = true);
                     //exclude current sequence from Locked List
                     sq.isLocked = false;
                 }
 
                 //in addition lock all other sequeces that change State
-                if(sq.endState != sq.startState)
+                if (sq.endState != sq.startState)
                 {
-                    sequences.FindAll (s => s.endState != s.startState).ForEach ((Sequence seq) => seq.isLocked = true);
+                    sequences.FindAll(s => s.endState != s.startState).ForEach((Sequence seq) => seq.isLocked = true);
                     sq.isLocked = false;
                 }
 
@@ -501,11 +549,11 @@ namespace IRSequencer.Module
                         if (bc.ag != KSPActionGroup.None)
                         {
                             //we should wait until ActionGroup is executed
-                            if(HighLogic.LoadedSceneIsFlight)
+                            if (HighLogic.LoadedSceneIsFlight)
                             {
                                 if (FlightGlobals.ActiveVessel != null)
                                 {
-                                    if(FlightGlobals.ActiveVessel.ActionGroups[bc.ag])
+                                    if (FlightGlobals.ActiveVessel.ActionGroups[bc.ag])
                                     {
                                         Logger.Log("[Sequencer] ActionGroup wait finished, AG fired was " + bc.ag.ToString(), Logger.Level.Debug);
                                         bc.isFinished = true;
@@ -548,7 +596,7 @@ namespace IRSequencer.Module
                         }
                         else if (bc.waitTime > 0f)
                         {
-                            if(UnityEngine.Time.time >= bc.timeStarted + bc.waitTime)
+                            if (UnityEngine.Time.time >= bc.timeStarted + bc.waitTime)
                             {
                                 Logger.Log("[Sequencer] Timed wait finished, waitTime was " + bc.waitTime + "s", Logger.Level.Debug);
                                 bc.isFinished = true;
@@ -557,7 +605,7 @@ namespace IRSequencer.Module
                             }
                         }
                     }
-                    else if (Math.Abs (bc.servo.Position - bc.position) <= POSDELTA)
+                    else if (Math.Abs(bc.servo.Position - bc.position) <= POSDELTA)
                     {
                         Logger.Log("[Sequencer] Command finished, servo = " + bc.servo.Name + ", pos = " + bc.position, Logger.Level.Debug);
                         bc.isFinished = true;
@@ -573,7 +621,7 @@ namespace IRSequencer.Module
                 if (activeCount <= 0)
                 {
                     //there are no active commands being executed, including Delays
-                    if (sq.lastCommandIndex+1 < sq.commands.Count)
+                    if (sq.lastCommandIndex + 1 < sq.commands.Count)
                     {
                         //there are still commands left to execute
                         //need to start from first unfinished command
@@ -581,7 +629,7 @@ namespace IRSequencer.Module
                         sq.isWaiting = false;
                         sq.Start(currentState);
                     }
-                    else 
+                    else
                     { 
                         //there are no more commands in the sequence left to execute
                         if (sq.isLooped)
@@ -610,8 +658,8 @@ namespace IRSequencer.Module
                     if (activeWaitCount > 0)
                     {
                         //we have some waits in the queue
-                        if (sq.commands[sq.lastCommandIndex].wait && 
-                            sq.commands[sq.lastCommandIndex].waitTime == 0f && 
+                        if (sq.commands[sq.lastCommandIndex].wait &&
+                            sq.commands[sq.lastCommandIndex].waitTime == 0f &&
                             sq.commands[sq.lastCommandIndex].ag == KSPActionGroup.None &&
                             sq.commands[sq.lastCommandIndex].agX == -1)
                         {
@@ -630,10 +678,15 @@ namespace IRSequencer.Module
                                     if (sq.commands[sq.lastCommandIndex].gotoCounter > 0 || sq.commands[sq.lastCommandIndex].gotoCounter == -1)
                                     {
                                         //we need to set all commands before it in the sequence as not Finished and Resume from gotoIndex
-                                        if (sq.commands[sq.lastCommandIndex].gotoCounter > 0) sq.commands[sq.lastCommandIndex].gotoCounter--;
+                                        if (sq.commands[sq.lastCommandIndex].gotoCounter > 0)
+                                            sq.commands[sq.lastCommandIndex].gotoCounter--;
 
                                         sq.commands.GetRange(sq.commands[sq.lastCommandIndex].gotoIndex, sq.commands.Count - sq.commands[sq.lastCommandIndex].gotoIndex)
-                                            .ForEach(delegate(BasicCommand c) { c.isFinished = false; c.isActive = false; });
+                                            .ForEach(delegate(BasicCommand c)
+                                            {
+                                                c.isFinished = false;
+                                                c.isActive = false;
+                                            });
                                         sq.Resume(sq.commands[sq.lastCommandIndex].gotoIndex);
                                     }
                                 }
@@ -675,13 +728,13 @@ namespace IRSequencer.Module
             //we need to change the currentState accordingly and reset the sequence
             foreach (Sequence sq in sequences)
             {
-                if(sq.isFinished && sq.endState != null && sq.startState != sq.endState)
+                if (sq.isFinished && sq.endState != null && sq.startState != sq.endState)
                 {
                     var oldState = currentState;
                     currentState = sq.endState;
                     //reset the sequence to the original state
                     sq.Reset();
-                    Logger.Log ("[ModuleSequencer] Sequence " + sq.name + " finished, changing current state to " + sq.endState.stateName, Logger.Level.Debug);
+                    Logger.Log("[ModuleSequencer] Sequence " + sq.name + " finished, changing current state to " + sq.endState.stateName, Logger.Level.Debug);
 
                     //now we need to process OnStateChange events
                     OnStateChange(oldState, currentState);
@@ -691,49 +744,90 @@ namespace IRSequencer.Module
 
         public void OnStateChange(SequencerState oldState, SequencerState newState)
         {
-            Logger.Log ("[ModuleSequencer] OnStateChange from " + oldState.stateName + "  to " + newState.stateName + " starting.", Logger.Level.Debug);
+            Logger.Log("[ModuleSequencer] OnStateChange from " + oldState.stateName + "  to " + newState.stateName + " starting.", Logger.Level.Debug);
 
-            foreach (Sequence sq in sequences) 
+            foreach (Sequence sq in sequences)
             {
                 //first we need to stop/reset all active sequences which startState is not newState
-                if(sq.isActive && sq.startState != null && sq.startState != newState)
+                if (sq.isActive && sq.startState != null && sq.startState != newState)
                 {
-                    sq.Pause ();
-                    sq.Reset ();
-                    Logger.Log ("[ModuleSequencer] OnStateChange stopping sequence " + sq.name, Logger.Level.Debug);
+                    sq.Pause();
+                    sq.Reset();
+                    Logger.Log("[ModuleSequencer] OnStateChange stopping sequence " + sq.name, Logger.Level.Debug);
                 }
 
                 //now we need to unlock previously locked sequences
                 var activeSequences = sequences.FindAll(s => s.isActive);
 
-                if (activeSequences.Count == 0) 
+                if (activeSequences.Count == 0)
                 {
                     //unlock all sequences as there are none active
-                    sequences.ForEach (((Sequence s) => s.isLocked = false));
+                    sequences.ForEach(((Sequence s) => s.isLocked = false));
                 }
 
-                if(activeSequences.Count(s => s.endState != s.startState) == 0)
+                if (activeSequences.Count(s => s.endState != s.startState) == 0)
                 {
                     //the only sequences that run are ones that do not change the state, so we can unlock all sequences
-                    sequences.ForEach (((Sequence s) => s.isLocked = false));
+                    sequences.ForEach(((Sequence s) => s.isLocked = false));
                 }
 
                 //check for sequences in AutoStart mode and start the ones that should trigger when we enter newState
-                if(!sq.isActive && sq.autoStart && sq.startState != null && sq.startState == newState && !sq.isLocked)
+                if (!sq.isActive && sq.autoStart && sq.startState != null && sq.startState == newState && !sq.isLocked)
                 {
-                    sq.Start (currentState);
+                    sq.Start(currentState);
 
-                    Logger.Log ("[ModuleSequencer] OnStateChange starting sequence " + sq.name + " due to AutoStart flag.", Logger.Level.Debug);
+                    Logger.Log("[ModuleSequencer] OnStateChange starting sequence " + sq.name + " due to AutoStart flag.", Logger.Level.Debug);
                 }
             }
 
-            Logger.Log ("[ModuleSequencer] OnStateChange from " + oldState.stateName + "  to " + newState.stateName + " complete.", Logger.Level.Debug);
+            Logger.Log("[ModuleSequencer] OnStateChange from " + oldState.stateName + "  to " + newState.stateName + " complete.", Logger.Level.Debug);
 
+        }
+
+        public void LockSequencer()
+        {
+            //we need to stop all running sequences and lock them
+            foreach (Sequence sq in sequences)
+            {
+                sq.Pause();
+                sq.Reset();
+                sq.isLocked = true;
+            }
+
+            isLocked = true;
+        }
+
+        public void UnlockSequencer()
+        {
+            //upon unlocking sequencer should initiate state change to lastState to trigger any auto-starting sequences
+            //there must be at least one state (by definition)
+            if (currentState == null)
+            {
+                currentState = states[0];
+            }
+            //feels a bit hacky, but it should work;
+            //it will unlock all the sequences as a side effect.
+            OnStateChange(currentState, currentState);
+
+            isLocked = false;
+        }
+
+        [KSPAction("Toggle Sequencer Lock")]
+        public void ToggleSequencerLock(KSPActionParam param)
+        {
+            if (isLocked)
+            {
+                UnlockSequencer();
+            }
+            else
+            {
+                LockSequencer();
+            }
         }
 
         public override void OnLoad(ConfigNode node)
         {
-            base.OnLoad (node);
+            base.OnLoad(node);
 
             //LoadData ();
             //to ensure everything loads properly load data on the next FixedUpdate.
@@ -747,9 +841,9 @@ namespace IRSequencer.Module
             SaveData ();
         }*/
 
-        public override void OnInitialize ()
+        public override void OnInitialize()
         {
-            base.OnInitialize ();
+            base.OnInitialize();
 
             loadPending = true;
         }

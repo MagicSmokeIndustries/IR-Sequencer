@@ -9,6 +9,10 @@ using IRSequencer.API;
 using IRSequencer.Utility;
 using IRSequencer.Core;
 using IRSequencer.Module;
+using KSP.UI.Screens;
+using UnityEngine.UI;
+using UnityEngine.EventSystems;
+using KSP.UI;
 
 namespace IRSequencer.Gui
 {
@@ -33,195 +37,77 @@ namespace IRSequencer.Gui
     {
         public virtual String AddonName { get; set; }
 
+        private static GameObject _controlWindow;
+        private static GameObject _settingsWindow;
+        private static GameObject _editorWindow;
+
+        private static CanvasGroupFader _controlWindowFader;
+        private static CanvasGroupFader _editorWindowFader;
+        private static CanvasGroupFader _settingsWindowFader;
+
+        public static float _UIAlphaValue = 0.8f;
+        public static float _UIScaleValue = 1.0f;
+        private const float UI_FADE_TIME = 0.1f;
+        private const float UI_MIN_ALPHA = 0.2f;
+        private const float UI_MIN_SCALE = 0.5f;
+        private const float UI_MAX_SCALE = 2.0f;
+
+        internal static bool guiRebuildPending = false;
+
         public bool guiHidden = false;
 
         public bool GUIEnabled = false;
-        public bool guiSequenceEditor = false;
-        public bool guiCommandEditor = false;
-        public bool guiStateSelector = false;
+        public bool guiControlWindowEditMode = false;
+        
         private bool isReady = false;
         private bool firstUpdate = true;
 
         public bool isEnabled = true;
-        internal static bool GUISetupDone = false;
+
+        internal static bool isKeyboardLocked = false;
 
         private ApplicationLauncherButton appLauncherButton;
-        private string tooltipText = "";
-        private string lastTooltipText = "";
-        private float tooltipTime;
-        private const float TOOLTIP_MAX_TIME = 8f;
-        private const float TOOLTIP_DELAY = 1.5f;
-        private static GUIStyle tooltipStyle;
-        private static GUIStyle buttonStyle;
-        private static GUIStyle nameStyle;
-        private static GUIStyle dotStyle;
-        private static GUIStyle playheadStyle;
-        private static GUIStyle textFieldStyle;
-        private static GUIStyle insertToggleStyle;
-        private static GUIStyle hoverStyle;
+        
+        protected static Vector3 SequencerWindowPosition;
+        protected static Vector3 SequencerEditorWindowPosition;
+        protected static Vector3 SequencerSettingsWindowPosition;
 
-        private static Color solidColor;
-        private static Color opaqueColor;
-
-        //Sequence Editor UI related
-        private float currentDelay = 1.0f;
-        private int currentMode = 0;
-        private string currentGotoIndexString = "1";
-        private int currentGotoIndex = 0;
-        private int currentGotoCounter = -1;
-        //index wher to insert new commands
-        private int insertCommandIndex = -1;
-
-        private string lastFocusedControlName = "";
-        private string lastFocusedTextFieldValue = "";
-
-        protected static Rect SequencerWindowPos;
-        protected static Rect SequencerEditorWindowPos;
-        protected static Rect SequencerCommandEditorWindowPos;
-        protected static Rect SequencerStateSelectorWindowPos;
-        protected static int SequencerWindowID;
-        protected static int SequencerEditorWindowID;
-        protected static int SequencerCommandEditorWindowID;
-        protected static int SequencerStateSelectorWindowID;
-
-        protected static Vector2 servoListScroll;
-        protected static Vector2 actionListScroll;
-        protected static Vector2 commandListScroll;
+        protected static Vector2 SequencerEditorWindowSize;
 
         protected static SequencerGUI SequencerInstance;
 
-        public bool SequencerReady {get { return isReady;}}
+        public bool SequencerReady { get { return isReady; } }
 
         public static SequencerGUI Instance
         {
             get { return SequencerInstance; }
         }
 
-        internal List<bool> openGroupsList;
-
         internal List<ModuleSequencer> sequencers;
 
         internal Sequence openSequence;
-        internal BasicCommand selectedBasicCommand;
-        internal int selectedBasicCommandIndex;
-        internal SequencerState selectedState = null;
-        internal Sequence selectedSequence = null;
-        internal ModuleSequencer selectedSequencer = null;
-        private List<BasicCommand> availableServoCommands;
+        internal int selectedGroupIndex = 0;
+        internal int selectedServoIndex = 0;
 
-        static SequencerGUI()
-        {
-            string assemblyName = Assembly.GetExecutingAssembly().GetName().Name;
-            SequencerWindowID = UnityEngine.Random.Range(1000, 2000000) + assemblyName.GetHashCode();
-            SequencerEditorWindowID = SequencerWindowID + 1;
-            SequencerCommandEditorWindowID = UnityEngine.Random.Range(1000, 2000000) + assemblyName.GetHashCode();
-            SequencerStateSelectorWindowID = SequencerCommandEditorWindowID + 1;
-        }
+        internal float moveToValue = 0f;
+        internal float moveAtValue = 1.0f;
+        internal KSPActionGroup selectedToggleAG = KSPActionGroup.Abort;
+        internal KSPActionGroup selectedWaitAG = KSPActionGroup.Abort;
 
-        /// <summary>
-        ///     Load the textures from files to memory
-        ///     Initialise Styles
-        /// </summary>
-        private static void InitGUI()
-        {
-            if (!GUISetupDone)
-            {
-                TextureLoader.InitTextures();
+        internal int selectedToggleAGX = 0;
+        internal int selectedWaitAGX = 0;
+        internal float delayTimeValue = 1f;
+        internal int repeatLineIndexValue = 0;
+        internal int repeatTimesValue = -1;
 
-                tooltipStyle = new GUIStyle
-                {
-                    fontSize = 12,
-                    fontStyle = FontStyle.Bold,
-                    normal =
-                    {
-                        textColor = new Color32(207, 207, 207, 255),
-                        background = TextureLoader.BgIcon
-                    },
-                    stretchHeight = true,
-                    border = new RectOffset(3, 3, 3, 3),
-                    padding = new RectOffset(4, 4, 6, 4),
-                    alignment = TextAnchor.MiddleLeft
-                };
+        internal KSPActionGroup[] stockActionGroups;
+        internal List<Dropdown.OptionData> actionGroupsOptions;
 
-                buttonStyle = new GUIStyle(GUI.skin.button);
-                buttonStyle.padding =  new RectOffset(2, 2, 2, 2);
-                buttonStyle.alignment = TextAnchor.MiddleCenter;
+        internal Dictionary<SequencerState, GameObject> _stateUIControls;
+        internal Dictionary<Sequence, GameObject> _sequenceUIControls;
+        internal Dictionary<BasicCommand, GameObject> _openSequenceCommandControls;
 
-                nameStyle = new GUIStyle(GUI.skin.label)
-                {
-                    alignment = TextAnchor.MiddleLeft,
-                    wordWrap = true,
-                    clipping = TextClipping.Overflow
-                };
-
-                playheadStyle = new GUIStyle()
-                {
-                    padding = new RectOffset(0, 0, 0, 0),
-                    border = new RectOffset(0, 0, 0, 0),
-                    margin = new RectOffset(0, 0, -3, -3),
-                    normal =
-                    {
-                        background = TextureLoader.PlayheadBG
-                    },
-                };
-
-                hoverStyle = new GUIStyle (GUI.skin.label) 
-                {
-                    hover = 
-                    {
-                        textColor = Color.white,
-                        background = TextureLoader.ToggleBGHover
-                    },
-                    padding = new RectOffset(1, 1, 1, 1),
-                    border = new RectOffset (1, 1, 1, 1)
-                };
-
-                insertToggleStyle = new GUIStyle (GUI.skin.label) 
-                {
-                    onNormal = 
-                    {
-                        textColor = Color.white,
-                        background = TextureLoader.ToggleBG
-                    },
-                    onActive = 
-                    {
-                        textColor = Color.white,
-                        background = TextureLoader.ToggleBG
-                    },
-                    onHover = 
-                    {
-                        textColor = Color.white,
-                        background = TextureLoader.ToggleBGHover
-                    },
-                    hover = 
-                    {
-                        textColor = Color.white,
-                        background = TextureLoader.ToggleBGHover
-                    },
-                    active = 
-                    {
-                        textColor = Color.white,
-                        background = TextureLoader.ToggleBG
-                    },
-                    alignment = TextAnchor.MiddleCenter,
-                    padding = new RectOffset(1, 1, 1, 1),
-                    border = new RectOffset (1, 1, 1, 1)
-                };
-
-                dotStyle = new GUIStyle(GUI.skin.label)
-                {
-                    richText = true,
-                    alignment = TextAnchor.MiddleCenter
-                };
-
-                textFieldStyle = new GUIStyle(GUI.skin.textField);
-
-                solidColor = new Color (1, 1, 1, 1);
-                opaqueColor = new Color (1, 1, 1, 0.7f);
-
-                GUISetupDone = true;
-            }
-        }
+        private static Vector2 commandProgressResetAnchor = new Vector2(0f, 1f);
 
         private void AddAppLauncherButton()
         {
@@ -229,31 +115,67 @@ namespace IRSequencer.Gui
             {
                 try
                 {
-                    var texture = new Texture2D(32, 32, TextureFormat.RGBA32, false);
-                    TextureLoader.LoadImageFromFile(texture, "icon_seq_button.png");
-                    Logger.Log(string.Format("[GUI Icon Loaded]"), Logger.Level.Debug);
+                    var texture = UIAssetsLoader.iconAssets.Find(t => t.name == "icon_seq_button");
+
                     if (ApplicationLauncher.Instance == null)
                     {
                         Logger.Log(string.Format("[GUI AddAppLauncher.Instance is null, PANIC!"), Logger.Level.Fatal);
                         return;
                     }
-                    appLauncherButton = ApplicationLauncher.Instance.AddModApplication(delegate { GUIEnabled = true; },
-                        delegate { GUIEnabled = false; }, null, null, null, null,
+                    appLauncherButton = ApplicationLauncher.Instance.AddModApplication(ShowControlWindow,
+                        CloseAllWindows, null, null, null, null,
                         ApplicationLauncher.AppScenes.FLIGHT, texture);
 
                 }
                 catch (Exception ex)
                 {
                     Logger.Log(string.Format("[GUI AddAppLauncherButton Exception, {0}", ex.Message), Logger.Level.Fatal);
-                    DestroyAppLauncherButton ();
+                    DestroyAppLauncherButton();
                     appLauncherButton = null;
+                }
+            }
+        }
+
+        public void CheckForServoSelection()
+        {
+            if (Input.GetMouseButtonDown(0) && (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl))) //Returns true during the frame the user pressed the given mouse button. 
+                                                                                                                          //It will not return true until the user has released the mouse button and pressed it again.
+            {
+                RaycastHit hit;
+                Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+
+                if (Physics.Raycast(ray, out hit))
+                {
+                    GameObject hitObject = hit.transform.gameObject;
+                    if (hitObject == null)
+                        return;
+
+                    Part part = hitObject.GetComponentInParent<Part>();
+                    if (part == null)
+                        return;
+
+                    for (int i = 0; i < IRWrapper.IRController.ServoGroups.Count; i++)
+                    {
+                        var g = IRWrapper.IRController.ServoGroups[i];
+                        for (int j = 0; j < g.Servos.Count; j++)
+                        {
+                            var s = g.Servos[j];
+                            if (s.HostPart == part)
+                            {
+                                selectedServoIndex = j;
+                                selectedGroupIndex = i;
+                                guiRebuildPending = true;
+                                return;
+                            }
+                        }
+                    }
                 }
             }
         }
 
         public void Update()
         {
-            if(firstUpdate)
+            if (firstUpdate)
             {
                 try
                 {
@@ -265,8 +187,273 @@ namespace IRSequencer.Gui
                 }
                 firstUpdate = false;
             }
+            else
+            {
+                //requires ServoGroups to be parsed
+                if (!IRWrapper.APIReady)
+                {
+                    if (appLauncherButton != null)
+                    {
+                        appLauncherButton.VisibleInScenes = ApplicationLauncher.AppScenes.NEVER;
+                    }
+                    return;
+                }
+
+                if (appLauncherButton != null)
+                {
+                    appLauncherButton.VisibleInScenes = ApplicationLauncher.AppScenes.FLIGHT | ApplicationLauncher.AppScenes.SPH | ApplicationLauncher.AppScenes.VAB;
+                }
+
+                if (HighLogic.LoadedSceneIsFlight)
+                {
+                    if (FlightGlobals.ActiveVessel == null)
+                        return;
+
+                    var sequencerModules = FlightGlobals.ActiveVessel.FindPartModulesImplementing<ModuleSequencer>();
+                    if (GUIEnabled && (sequencerModules == null || sequencerModules.Count == 0))
+                    {
+                        ScreenMessages.PostScreenMessage("Sequencer module is required (add probe core).", 3, ScreenMessageStyle.UPPER_CENTER);
+                        GUIEnabled = false;
+                        CloseAllWindows();
+                        return;
+                    }
+                }
+                else if (HighLogic.LoadedSceneIsEditor)
+                {
+                    if (GUIEnabled && EditorLogic.fetch != null)
+                    {
+                        var s = EditorLogic.fetch.ship;
+                        if (s != null)
+                        {
+                            var modulePart = s.Parts.Find(p => p.FindModuleImplementing<ModuleSequencer>() != null);
+                            if (modulePart == null)
+                            {
+                                ScreenMessages.PostScreenMessage("Sequencer module is required (add probe core).", 3, ScreenMessageStyle.UPPER_CENTER);
+                                GUIEnabled = false;
+                                CloseAllWindows();
+                                return;
+                            }
+                        }
+                    }
+                }
+
+                if (!GUIEnabled)
+                    return;
+
+                if(EventSystem.current.currentSelectedGameObject != null && 
+                    (EventSystem.current.currentSelectedGameObject.name.Contains("InputField") || EventSystem.current.currentSelectedGameObject.name.Contains("Key")))
+                {
+                    if(!isKeyboardLocked)
+                        KeyboardLock(true); 
+                }
+                else
+                {
+                    if(isKeyboardLocked)
+                        KeyboardLock(false);
+                }
+
+                if (guiRebuildPending && GUIEnabled)
+                    RebuildUI();
+                
+                if (openSequence != null)
+                {
+                    if (openSequence.isActive || openSequence.isFinished || openSequence.isWaiting)
+                    {
+                        UpdateOpenSequenceCommandProgress();
+                    }
+
+                    CheckForServoSelection();
+
+                    UpdateOpenSequenceControls();
+                }
+
+                //go through all modules and update UI controls accordingly
+                if (sequencers == null || sequencers.Count == 0
+                    || _stateUIControls == null || _stateUIControls.Count == 0)
+                    return;
+
+                for (int i = 0; i < sequencers.Count; i++)
+                {
+                    var module = sequencers[i];
+                    for (int j = 0; j < module.states.Count; j++)
+                    {
+                        var state = module.states[j];
+                        if (!_stateUIControls.ContainsKey(state))
+                        {
+                            Logger.Log("Could not find state UI controls " + state.stateName);
+                            continue;
+                        }
+                            
+                        var stateUIControls = _stateUIControls[state];
+
+                        var stateStatusImage = stateUIControls.GetChild("SequencerStateControlsHLG").GetChild("SequencerStateStatusHandle").GetComponent<RawImage>();
+
+                        if (module.currentState.stateID == state.stateID)
+                        {
+                            stateStatusImage.texture = UIAssetsLoader.iconAssets.Find(t => t.name == "IRWindowIndicator_Active");
+                        }
+                        else
+                        {
+                            stateStatusImage.texture = UIAssetsLoader.iconAssets.Find(t => t.name == "icon_groupdraghandle");
+                        }
+                    }
+
+                    //now loop through sequences
+                    for (int j = 0; j < module.sequences.Count; j++)
+                    {
+                        var sq = module.sequences[j];
+                        if (!_sequenceUIControls.ContainsKey(sq))
+                        {
+                            Logger.Log("Could not find sequence UI controls " + sq.name);
+                            continue;
+                        }
+                            
+                        var sequenceUIControls = _sequenceUIControls[sq];
+
+                        var sequenceStatusImage = sequenceUIControls.GetChild("SequenceStatusRawImage").GetComponent<RawImage>();
+
+                        if (sq.isActive)
+                        {
+                            sequenceStatusImage.texture = UIAssetsLoader.iconAssets.Find(t => t.name == "IRWindowIndicator_Active");
+                        }
+                        else if (sq.isFinished)
+                        {
+                            sequenceStatusImage.texture = UIAssetsLoader.iconAssets.Find(t => t.name == "IRWindowIndicator_Finished");
+                        }
+                        else
+                        {
+                            sequenceStatusImage.texture = UIAssetsLoader.iconAssets.Find(t => t.name == "IRWindowIndicator_Idle");
+                        }
+
+                        if (sq.IsPaused)
+                        {
+                            sequenceStatusImage.texture = UIAssetsLoader.iconAssets.Find(t => t.name == "IRWindowIndicator_Paused");
+                        }
+
+                        if (sq.isLocked)
+                        {
+                            sequenceStatusImage.texture = UIAssetsLoader.iconAssets.Find(t => t.name == "IRWindowIndicator_Locked");
+                        }
+                        
+                        var sequenceStartToggle = sequenceUIControls.GetChild("SequenceStartToggle").GetComponent<Toggle>();
+
+                        if (sequenceStartToggle.isOn != sq.isActive)
+                        {
+                            sequenceStartToggle.isOn = sq.isActive;
+                            //sequenceStartToggle.onValueChanged.Invoke (sq.isActive);
+                        }
+
+                        var sequenceLoopToggle = sequenceUIControls.GetChild("SequenceLoopToggle").GetComponent<Toggle>();
+                        if (sq.isLooped != sequenceLoopToggle.isOn)
+                        {
+                            //sequenceLoopToggle.isOn = sq.isLooped;
+                            sequenceLoopToggle.onValueChanged.Invoke(sq.isLooped);
+                        }
+                            
+
+
+                    }
+                }
+            }
         }
 
+        internal void UpdateOpenSequenceControls()
+        {
+            //now hook in Sequence control buttons
+            var footerButtonsZone = _editorWindow.GetChild("WindowContent").GetChild("Panes").GetChild("LeftPane").GetChild("FooterButtonsHLG");
+            var sequenceStartToggle = footerButtonsZone.GetChild("SequenceStartToggle").GetComponent<Toggle>();
+            sequenceStartToggle.isOn = openSequence.isActive;
+
+            var sequenceLoopToggle = footerButtonsZone.GetChild("SequenceLoopToggle").GetComponent<Toggle>();
+            sequenceLoopToggle.isOn = openSequence.isLooped;
+        }
+
+        internal void UpdateOpenSequenceCommandProgress()
+        {
+            //first animate the progressbar
+            for (int i = 0; i < openSequence.commands.Count; i++)
+            {
+                var bc = openSequence.commands[i];
+
+                float progress = 0f;
+
+                if (bc.gotoIndex != -1)
+                {
+                    progress = (bc.gotoCommandCounter == -1) ? 0f : 1f - ((float) bc.gotoCounter / (float) bc.gotoCommandCounter);
+                }
+                else if (bc.isFinished)
+                {
+                    progress = 1f;
+                }
+                else if (bc.servo != null)
+                {
+                    if (bc.servo.MaxPosition - bc.servo.MinPosition > 0.01f)
+                        progress = 1f - Mathf.Abs(bc.position - bc.servo.Position) / (bc.servo.MaxPosition - bc.servo.MinPosition);
+                    else
+                        progress = 1f;
+                }
+                else if (bc.waitTime > 0f)
+                {
+                    progress = Mathf.Clamp((UnityEngine.Time.time - bc.timeStarted) / bc.waitTime, 0f, 1f);
+                }
+                
+                var commandUIControls = _openSequenceCommandControls[bc];
+                if (!commandUIControls)
+                    continue;
+                
+                var commandProgressBarTransform = commandUIControls.GetChild("CommandProgressBar").GetComponent<RectTransform>();
+                commandProgressBarTransform.anchorMax = new Vector2(progress, 1f);
+                
+                var commandStatusRawImage = commandUIControls.GetChild("CommandDragHandle").GetComponent<RawImage>();
+
+                if (bc.isActive)
+                {
+                    commandStatusRawImage.texture = UIAssetsLoader.iconAssets.Find(t => t.name == "IRWindowIndicator_Active");
+                }
+                else if (bc.isFinished)
+                {
+                    commandStatusRawImage.texture = UIAssetsLoader.iconAssets.Find(t => t.name == "IRWindowIndicator_Finished");
+                }
+                else
+                {
+                    commandStatusRawImage.texture = UIAssetsLoader.iconAssets.Find(t => t.name == "IRWindowIndicator_Idle");
+                }
+                
+            }
+        }
+
+        internal void ResetOpenSequenceCommandProgress()
+        {
+            if (openSequence == null)
+                return;
+
+            for (int i = 0; i < openSequence.commands.Count; i++)
+            {
+                var bc = openSequence.commands[i];
+
+                var commandUIControls = _openSequenceCommandControls[bc];
+                if (!commandUIControls)
+                    continue;
+
+                var commandProgressBarTransform = commandUIControls.GetChild("CommandProgressBar").GetComponent<RectTransform>();
+                commandProgressBarTransform.anchorMax = commandProgressResetAnchor;
+
+                var commandStatusRawImage = commandUIControls.GetChild("CommandDragHandle").GetComponent<RawImage>();
+                commandStatusRawImage.texture = UIAssetsLoader.iconAssets.Find(t => t.name == "icon_dragHandle");
+            }
+        }
+
+        public void ShowControlWindow()
+        {
+            RebuildUI();
+
+            _controlWindowFader.FadeTo(_UIAlphaValue, 0.1f, () =>
+                {
+                    GUIEnabled = true;
+                    appLauncherButton.SetTrue(false);
+                });
+            
+        }
 
         private void OnVesselChange(Vessel v)
         {
@@ -282,11 +469,10 @@ namespace IRSequencer.Gui
                 }
 
             sequencers.Clear();
-            openGroupsList = null;
-            guiSequenceEditor = false;
-            availableServoCommands = null;
             openSequence = null;
-
+            CloseAllWindows();
+            guiRebuildPending = true;
+            
             //find module SequencerStorage and force loading of sequences
             var modules = v.FindPartModulesImplementing<ModuleSequencer>();
             if (modules == null)
@@ -298,14 +484,14 @@ namespace IRSequencer.Gui
             {
                 try
                 {
-                    if  (v == FlightGlobals.ActiveVessel && modules.Count > 0)
+                    if (v == FlightGlobals.ActiveVessel && modules.Count > 0)
                     {
                         sequencers = modules;
 
                     }
                     else
                     {
-                        Logger.Log("Could not find SequencerStorage module to load sequences from", Logger.Level.Debug);
+                        Logger.Log("Could not find ModuleSequencer module to load sequences from", Logger.Level.Debug);
                         return;
                     }
                         
@@ -329,25 +515,22 @@ namespace IRSequencer.Gui
 
         private void OnEditorShipModified(ShipConstruct ship)
         {
-            if(!IRWrapper.APIReady)
+            if (!IRWrapper.APIReady)
             {
                 IRWrapper.InitWrapper();
             }
-            guiSequenceEditor = false;
-            availableServoCommands = null;
-            openGroupsList = null;
             openSequence = null;
-            sequencers.Clear ();
+            sequencers.Clear();
+            guiRebuildPending = true;
 
             var sequencerParts = ship.Parts.FindAll(p => p.FindModuleImplementing<ModuleSequencer>() != null);
 
-            for (int i=0; i < sequencerParts.Count; i++)
+            for (int i = 0; i < sequencerParts.Count; i++)
             {
                 var seqModule = sequencerParts[i].FindModuleImplementing<ModuleSequencer>();
                 sequencers.Add(seqModule);
                 seqModule.loadPending = true;
             }
-
         }
 
         private void Awake()
@@ -360,20 +543,15 @@ namespace IRSequencer.Gui
             SequencerInstance = this;
             isReady = true;
 
-            sequencers = new List<ModuleSequencer> ();
-            sequencers.Clear ();
+            sequencers = new List<ModuleSequencer>();
+            sequencers.Clear();
 
             GameEvents.onVesselChange.Add(OnVesselChange);
             GameEvents.onVesselWasModified.Add(OnVesselWasModified);
             GameEvents.onEditorShipModified.Add(OnEditorShipModified);
             GameEvents.onEditorRestart.Add(OnEditorRestart);
-
+            GameEvents.onGUIApplicationLauncherReady.Add(AddAppLauncherButton);
             GameEvents.onGameSceneLoadRequested.Add(OnGameSceneLoadRequestedForAppLauncher);
-
-            if (ApplicationLauncher.Ready && appLauncherButton == null && ApplicationLauncher.Instance != null)
-            {
-                AddAppLauncherButton();
-            }
 
             Logger.Log("[Sequencer] Awake successful, Addon: " + AddonName, Logger.Level.Debug);
         }
@@ -381,11 +559,9 @@ namespace IRSequencer.Gui
         private void OnEditorRestart()
         {
             GUIEnabled = false;
-            guiSequenceEditor = false;
-            availableServoCommands = null;
-            openGroupsList = null;
+            CloseAllWindows();
             openSequence = null;
-            sequencers.Clear ();
+            sequencers.Clear();
         }
 
         void OnGameSceneLoadRequestedForAppLauncher(GameScenes SceneToLoad)
@@ -419,22 +595,42 @@ namespace IRSequencer.Gui
 
         private void DestroyAppLauncherButton()
         {
-            try
+            if (appLauncherButton != null && ApplicationLauncher.Instance != null)
             {
-                if (appLauncherButton != null && ApplicationLauncher.Instance != null)
-                {
-                    ApplicationLauncher.Instance.RemoveModApplication(appLauncherButton);
-                    appLauncherButton = null;
-                }
-            }
-            catch (Exception e)
-            {
-                Logger.Log("[Sequencer] Failed unregistering AppLauncher handlers," + e.Message);
+                ApplicationLauncher.Instance.RemoveModApplication(appLauncherButton);
+                appLauncherButton = null;
             }
         }
 
         private void OnDestroy()
         {
+            if (_controlWindow)
+            {
+                _controlWindow.DestroyGameObjectImmediate();
+                _controlWindow = null;
+                _controlWindowFader = null;
+            }
+
+            if (_editorWindow)
+            {
+                _editorWindow.DestroyGameObjectImmediate();
+                _editorWindow = null;
+                _editorWindowFader = null;
+            }
+
+            if (_settingsWindow)
+            {
+                _settingsWindow.DestroyGameObjectImmediate();
+                _settingsWindow = null;
+            }
+
+            _stateUIControls = null;
+            _sequenceUIControls = null;
+            openSequence = null;
+            _openSequenceCommandControls = null;
+
+            EditorLocker.EditorLock(false);
+
             GameEvents.onShowUI.Remove(OnShowUI);
             GameEvents.onHideUI.Remove(OnHideUI);
 
@@ -446,6 +642,8 @@ namespace IRSequencer.Gui
             SequencerGUI.Instance.isReady = false;
             SaveConfigXml();
 
+            GameEvents.onGUIApplicationLauncherReady.Remove(AddAppLauncherButton);
+
             GameEvents.onGameSceneLoadRequested.Remove(OnGameSceneLoadRequestedForAppLauncher);
             DestroyAppLauncherButton();
 
@@ -454,1429 +652,1272 @@ namespace IRSequencer.Gui
             Logger.Log("[Sequencer] Destroy successful", Logger.Level.Debug);
         }
 
-        /// <summary>
-        /// Has to be called after any GUI element with tooltips.
-        /// </summary>
-        private void SetTooltipText()
+
+        private void InitSettingsWindow()
         {
-            if (Event.current.type == EventType.Repaint)
-            {
-                tooltipText = GUI.tooltip;
-            }
-        }
-
-        /// <summary>
-        /// Called in the end of OnGUI(), draws tooltip saved in tooltipText
-        /// </summary>
-        private void DrawTooltip()
-        {
-            Vector2 pos = Event.current.mousePosition;
-            if (tooltipText != "" && tooltipTime < TOOLTIP_MAX_TIME)
-            {
-                
-                var tooltip = new GUIContent(tooltipText);
-                Vector2 size = tooltipStyle.CalcSize(tooltip);
-
-                var tooltipPos = new Rect(pos.x - (size.x / 4), pos.y + 17, size.x, size.y);
-
-                if (tooltipText != lastTooltipText)
-                {
-                    //reset timer
-                    tooltipTime = 0f;
-                }
-
-                if (tooltipTime > TOOLTIP_DELAY)
-                {
-                    GUI.Label(tooltipPos, tooltip, tooltipStyle);
-                    GUI.depth = 0;
-                }
-
-                tooltipTime += Time.deltaTime;
-            }
-
-            if (tooltipText != lastTooltipText) tooltipTime = 0f;
-            lastTooltipText = tooltipText;
-        }
-
-        private void DrawSequencerStateSequences(ModuleSequencer module, SequencerState startState)
-        {
-            var allSequences = module.sequences.FindAll(s => s.startState == startState);
-            if (allSequences == null || allSequences.Count == 0)
+            if (_settingsWindow != null)
                 return;
 
-            GUILayout.BeginVertical();
-            for (int i = 0; i < allSequences.Count; i++)
+            _settingsWindow = GameObject.Instantiate(UIAssetsLoader.uiSettingsWindowPrefab);
+            _settingsWindow.transform.SetParent(UIMasterController.Instance.appCanvas.transform, false);
+            _settingsWindow.GetChild("WindowTitle").AddComponent<PanelDragger>();
+            _settingsWindowFader = _settingsWindow.AddComponent<CanvasGroupFader>();
+
+            _settingsWindow.GetComponent<CanvasGroup>().alpha = 0f;
+
+            var closeButton = _settingsWindow.GetChild("WindowTitle").GetChild("RightWindowButton");
+            if (closeButton != null)
             {
-                //list through all sequences
-                var sq = allSequences[i];
-                GUILayout.BeginHorizontal();
+                closeButton.GetComponent<Button>().onClick.AddListener(ToggleSettingsWindow);
+            }
 
-                string sequenceStatus = (sq.isActive) ? "<color=lime>■</color>" : sq.isFinished ? "<color=green>■</color>" : "<color=silver>■</color>";
-                if (sq.IsPaused)
-                    sequenceStatus = "<color=yellow>■</color>";
+            var alphaText = _settingsWindow.GetChild("WindowContent").GetChild("UITransparencySliderHLG").GetChild("TransparencyValue").GetComponent<Text>();
+            alphaText.text = string.Format("{0:#0.00}", _UIAlphaValue);
 
-                if (sq.isLocked)
-                    sequenceStatus = "<color=red>■</color>";
+            var transparencySlider = _settingsWindow.GetChild("WindowContent").GetChild("UITransparencySliderHLG").GetChild("TransparencySlider");
 
-                GUI.color = solidColor;
+            if (transparencySlider)
+            {
+                var sliderControl = transparencySlider.GetComponent<Slider>();
+                sliderControl.minValue = UI_MIN_ALPHA;
+                sliderControl.maxValue = 1.0f;
+                sliderControl.value = _UIAlphaValue;
+                sliderControl.onValueChanged.AddListener(v =>
+                    {
+                        alphaText.text = string.Format("{0:#0.00}", v);
+                    });
+            }
 
-                GUILayout.Label(sequenceStatus, dotStyle, GUILayout.Width(20), GUILayout.Height(22));
+            var scaleText = _settingsWindow.GetChild("WindowContent").GetChild("UIScaleSliderHLG").GetChild("ScaleValue").GetComponent<Text>();
+            scaleText.text = string.Format("{0:#0.00}", _UIScaleValue);
 
-                sq.name = GUILayout.TextField(sq.name, textFieldStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
+            var scaleSlider = _settingsWindow.GetChild("WindowContent").GetChild("UIScaleSliderHLG").GetChild("ScaleSlider");
 
-                sq.autoStart = GUILayout.Toggle(sq.autoStart, new GUIContent(TextureLoader.AutoStartIcon, "Auto-Start"), 
-                    buttonStyle, GUILayout.Width(22), GUILayout.Height(22));
+            if (scaleSlider)
+            {
+                var sliderControl = scaleSlider.GetComponent<Slider>();
+                sliderControl.minValue = UI_MIN_SCALE;
+                sliderControl.maxValue = UI_MAX_SCALE;
+                sliderControl.value = _UIScaleValue;
+                sliderControl.onValueChanged.AddListener(v =>
+                    {
+                        scaleText.text = string.Format("{0:#0.00}", v);
+                    });
+            }
+            
+            var footerButtons = _settingsWindow.GetChild("WindowFooter").GetChild("WindowFooterButtonsHLG");
 
-                if (sq.endState != null)
+            var cancelButton = footerButtons.GetChild("CancelButton").GetComponent<Button>();
+            cancelButton.onClick.AddListener(() =>
                 {
-                    //GUILayout.Label(" » " + sq.endState.stateName, nameStyle, GUILayout.Width(75), GUILayout.Height(22));
-                    if(GUILayout.Button(" » " + sq.endState.stateName, buttonStyle, GUILayout.Width(75), GUILayout.Height(22)))
-                    {
-                        //open the state selector window. In new UI will be just a dropdown box
-                        guiStateSelector = true; 
-                        selectedState = sq.endState;
-                        selectedSequence = sq;
-                    }
-                }
+                    transparencySlider.GetComponent<Slider>().value = _UIAlphaValue;
+                    alphaText.text = string.Format("{0:#0.00}", _UIAlphaValue);
 
-                sq.keyShortcut = GUILayout.TextField(sq.keyShortcut, textFieldStyle, GUILayout.Width(25), GUILayout.Height(22));
+                    scaleSlider.GetComponent<Slider>().value = _UIScaleValue;
+                    scaleText.text = string.Format("{0:#0.00}", _UIScaleValue);
+                });
 
-                if (sq.isLocked || sq.startState != module.currentState)
+            var defaultButton = footerButtons.GetChild("DefaultButton").GetComponent<Button>();
+            defaultButton.onClick.AddListener(() =>
                 {
+                    _UIAlphaValue = 0.8f;
+                    _UIScaleValue = 1.0f;
 
-                    if (GUILayout.Button(new GUIContent(TextureLoader.DisabledPlayIcon, "Controls Disabled"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
-                    {
-                       
-                    }
-                    SetTooltipText ();
+                    transparencySlider.GetComponent<Slider>().value = _UIAlphaValue;
+                    alphaText.text = string.Format("{0:#0.00}", _UIAlphaValue);
 
-                    if (GUILayout.Button(new GUIContent(TextureLoader.DisabledStopIcon, "Controls Disabled"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
-                    {
-                        
-                    }
-                    SetTooltipText ();
-                }
-                else
+                    scaleSlider.GetComponent<Slider>().value = _UIScaleValue;
+                    scaleText.text = string.Format("{0:#0.00}", _UIScaleValue);
+
+                    SetGlobalAlpha(_UIAlphaValue);
+                    SetGlobalScale(_UIScaleValue);
+                });
+
+            var applyButton = footerButtons.GetChild("ApplyButton").GetComponent<Button>();
+            applyButton.onClick.AddListener(() =>
                 {
-                    bool playToggle = GUILayout.Toggle(sq.isActive, 
-                        sq.isActive ? new GUIContent(TextureLoader.PauseIcon, "Pause") : new GUIContent(TextureLoader.PlayIcon, "Play"), 
-                        buttonStyle, GUILayout.Width(22), GUILayout.Height(22));
-                    SetTooltipText ();
+                    float newAlphaValue = (float)Math.Round(transparencySlider.GetComponent<Slider>().value, 2);
+                    float newScaleValue = (float)Math.Round(scaleSlider.GetComponent<Slider>().value, 2);
 
-                    if(playToggle && !sq.isLocked)
-                    {
-                        if (playToggle != sq.isActive)
-                        {
-                            sq.Start(module.currentState);
-                        }
-                    }
-                    else if (!sq.isLocked)
-                    {
-                        if (playToggle != sq.isActive && !sq.isFinished)
-                        {
-                            sq.Pause();
-                        }
-                    }
+                    SetGlobalAlpha(newAlphaValue);
+                    SetGlobalScale(newScaleValue);
+                });
+            _settingsWindow.SetActive(false);
+        }
 
-                    if (GUILayout.Button(new GUIContent(TextureLoader.StopIcon, "Stop"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
-                    {
-                        if (!sq.isLocked)
-                            sq.Reset();
-                    }
-                    SetTooltipText ();
+        private void SetGlobalAlpha(float newAlpha)
+        {
+            _UIAlphaValue = Mathf.Clamp(newAlpha, UI_MIN_ALPHA, 1.0f);
 
-                }
+            if (_controlWindow)
+            {
+                _controlWindow.GetComponent<CanvasGroup>().alpha = _UIAlphaValue;
+            }
+            if (_settingsWindow)
+            {
+                _settingsWindow.GetComponent<CanvasGroup>().alpha = _UIAlphaValue;
 
-                sq.isLooped = GUILayout.Toggle(sq.isLooped, 
-                    new GUIContent(sq.isLooped ? TextureLoader.LoopingIcon : TextureLoader.LoopIcon, "Loop"), 
-                    buttonStyle, GUILayout.Width(22), GUILayout.Height(22));
+                var alphaText = _settingsWindow.GetChild("WindowContent").GetChild("UITransparencySliderHLG").GetChild("TransparencyValue").GetComponent<Text>();
+                alphaText.text = string.Format("{0:#0.##}", _UIAlphaValue);
+            }
+            if (_editorWindow && openSequence != null)
+            {
+                _editorWindow.GetComponent<CanvasGroup>().alpha = _UIAlphaValue;
+            }
+        }
 
-                GUILayout.Space(4);
+        private void SetGlobalScale(float newScale)
+        {
+            newScale = Mathf.Clamp(newScale, UI_MIN_SCALE, UI_MAX_SCALE);
 
-                bool sequenceEditToggle = (openSequence == sq) && guiSequenceEditor;
+            if (_controlWindow)
+            {
+                _controlWindow.transform.localScale = Vector3.one * newScale;
+            }
+            if (_editorWindow)
+            {
+                _editorWindow.transform.localScale = Vector3.one * newScale;
+            }
+            if (_settingsWindow)
+            {
+                _settingsWindow.transform.localScale = Vector3.one * newScale;
 
-                bool toggleVal = GUILayout.Toggle(sequenceEditToggle, new GUIContent(TextureLoader.EditIcon, "Edit"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22));
-                SetTooltipText();
+                var scaleText = _settingsWindow.GetChild("WindowContent").GetChild("UIScaleSliderHLG").GetChild("ScaleValue").GetComponent<Text>();
+                scaleText.text = string.Format("{0:#0.##}", newScale);
+            }
 
-                if (sequenceEditToggle != toggleVal)
+            _UIScaleValue = newScale;
+        }
+
+        public void ToggleSettingsWindow()
+        {
+            if (_settingsWindow == null || _settingsWindowFader == null)
+                return;
+
+            //lets simplify things
+            if (_settingsWindowFader.IsFading)
+                return;
+
+            if (_settingsWindow.activeInHierarchy)
+            {
+                //fade the window out and deactivate
+                _settingsWindowFader.FadeTo(0, UI_FADE_TIME, () => _settingsWindow.SetActive(false));
+            }
+            else
+            {
+                //activate and fade the window in,
+                _settingsWindow.SetActive(true);
+                _settingsWindowFader.FadeTo(_UIAlphaValue, UI_FADE_TIME);
+            }
+        }
+
+        private void InitControlWindow(bool startSolid = true)
+        {
+            _controlWindow = GameObject.Instantiate(UIAssetsLoader.controlWindowPrefab);
+            _controlWindow.transform.SetParent(UIMasterController.Instance.appCanvas.transform, false);
+            _controlWindow.GetChild("WindowTitle").AddComponent<PanelDragger>();
+            _controlWindowFader = _controlWindow.AddComponent<CanvasGroupFader>();
+
+            _controlWindow.AddComponent<EditorLocker>();
+
+            //start invisible to be toggled later
+            if (!startSolid)
+                _controlWindow.GetComponent<CanvasGroup>().alpha = 0f;
+
+            if (SequencerWindowPosition == Vector3.zero)
+            {
+                //get the default position from the prefab
+                SequencerWindowPosition = _controlWindow.transform.position;
+            }
+            else
+            {
+                _controlWindow.transform.position = SequencerWindowPosition;
+            }
+
+            var settingsButton = _controlWindow.GetChild("WindowTitle").GetChild("LeftWindowButton");
+            if (settingsButton != null)
+            {
+                settingsButton.GetComponent<Button>().onClick.AddListener(ToggleSettingsWindow);
+                var t = settingsButton.AddComponent<BasicTooltip>();
+                t.tooltipText = "Show/hide UI settings";
+            }
+
+            var closeButton = _controlWindow.GetChild("WindowTitle").GetChild("RightWindowButton");
+            if (closeButton != null)
+            {
+                closeButton.GetComponent<Button>().onClick.AddListener(CloseAllWindows);
+                var t = closeButton.AddComponent<BasicTooltip>();
+                t.tooltipText = "Close window";
+            }
+        }
+
+        private void InitSequencerLinePrefab(GameObject sequencerLinePrefab, ModuleSequencer module)
+        {
+            var sequencerControls = sequencerLinePrefab.GetChild("SequencerControlsHLG");
+
+            var sequencerNameLabel = sequencerControls.GetChild("SequencerNameText").GetComponent<Text>();
+            sequencerNameLabel.text = module.sequencerName;
+            sequencerNameLabel.gameObject.SetActive(!guiControlWindowEditMode);
+
+            var sequencerNameInputField = sequencerControls.GetChild("SequencerNameInputField").GetComponent<InputField>();
+            sequencerNameInputField.text = module.sequencerName;
+            sequencerNameInputField.onEndEdit.AddListener(v => module.sequencerName = sequencerNameLabel.text = v);
+            sequencerNameInputField.gameObject.SetActive(guiControlWindowEditMode); //should be only visible in edit mode
+
+            var sequencerEditModeToggle = sequencerControls.GetChild("SequencerEditToggle").GetComponent<Toggle>();
+            sequencerEditModeToggle.isOn = guiControlWindowEditMode;
+            sequencerEditModeToggle.onValueChanged.AddListener(ToggleControlWindowEditMode);
+
+            var sequencerLockToggle = sequencerControls.GetChild("SequencerLockToggle").GetComponent<Toggle>();
+            sequencerLockToggle.isOn = module.isLocked;
+            sequencerLockToggle.onValueChanged.AddListener(v => module.isLocked = v);
+
+            var sequencerAddStateButton = sequencerControls.GetChild("AddStateButton").GetComponent<Button>();
+            sequencerAddStateButton.onClick.AddListener(() =>
                 {
-                    if (guiSequenceEditor && Equals(openSequence, sq))
-                        guiSequenceEditor = !guiSequenceEditor;
-                    else
+                    var newState = new SequencerState();
+                    newState.stateName = "New State";
+                    module.states.Add(newState);
+                    //add gui code
+                    guiRebuildPending = true;
+                });
+            sequencerAddStateButton.gameObject.SetActive(guiControlWindowEditMode);
+
+            var statesArea = sequencerLinePrefab.GetChild("SequencerStatesVLG");
+            statesArea.AddComponent<StateDropHandler>();
+
+
+
+            for (int i = 0; i < module.states.Count; i++)
+            {
+                var st = module.states[i];
+
+                var stateLine = GameObject.Instantiate(UIAssetsLoader.stateLinePrefab);
+                stateLine.transform.SetParent(statesArea.transform, false);
+
+                InitSequencerStatePrefab(stateLine, st, module);
+
+                _stateUIControls.Add(st, stateLine);
+            }
+        }
+
+        private void InitSequencerStatePrefab(GameObject stateLinePrefab, SequencerState state, ModuleSequencer module)
+        {
+            var stateControls = stateLinePrefab.GetChild("SequencerStateControlsHLG");
+
+            var stateDragHandleObject = stateControls.GetChild("SequencerStateStatusHandle");
+            var dragHandler = stateDragHandleObject.AddComponent<StateDragHandler>();
+            dragHandler.mainCanvas = UIMasterController.Instance.appCanvas;
+            dragHandler.background = UIAssetsLoader.spriteAssets.Find(a => a.name == "IRWindowGroupFrame_Drag");
+            dragHandler.linkedState = state;
+
+            var sequencerStateNameLabel = stateControls.GetChild("SequencerStateNameText").GetComponent<Text>();
+            sequencerStateNameLabel.text = state.stateName;
+            sequencerStateNameLabel.gameObject.SetActive(!guiControlWindowEditMode); //should be hidden in edit mode
+
+            var sequencerStateNameInputField = stateControls.GetChild("SequencerStateNameInputField").GetComponent<InputField>();
+            sequencerStateNameInputField.text = state.stateName;
+            sequencerStateNameInputField.onEndEdit.AddListener(v => state.stateName = sequencerStateNameLabel.text = v);
+            sequencerStateNameInputField.gameObject.SetActive(guiControlWindowEditMode); //should be only visible in edit mode
+
+            var sequencerStateDeleteButton = stateControls.GetChild("SequencerStateDeleteButton").GetComponent<Button>();
+            sequencerStateDeleteButton.onClick.AddListener(() =>
+                {
+                    //remove all affected sequences
+                    module.sequences.RemoveAll(seq => (seq.startState == state || seq.endState == state));
+                    module.states.Remove(state);
+                    if (module.currentState == state)
                     {
-                        openSequence = sq;
-                        if (!guiSequenceEditor)
-                            guiSequenceEditor = true;
+                        //reset to the first state
+                        module.currentState = module.states[0];
                     }
-                }
 
-                if (GUILayout.Button(new GUIContent(TextureLoader.CloneIcon, "Clone"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
+                    guiRebuildPending = true;
+
+                });
+            sequencerStateDeleteButton.gameObject.SetActive(guiControlWindowEditMode);
+
+            var stateAddSequenceButton = stateControls.GetChild("AddSequenceButton").GetComponent<Button>();
+            stateAddSequenceButton.onClick.AddListener(() =>
                 {
-                    allSequences.Add(new Sequence(sq));
-                }
-                SetTooltipText ();
+                    var newSeq = new Sequence();
+                    newSeq.startState = state;
+                    newSeq.endState = state;
+                    module.sequences.Add(newSeq);
+                    guiRebuildPending = true;
+                });
 
-                GUILayout.Space(4);
+            var sequencesArea = stateLinePrefab.GetChild("SequencerStateSequencesVLG");
+            var dropHandler = sequencesArea.AddComponent<SequenceDropHandler>();
+            dropHandler.linkedState = state;
 
-                if (GUILayout.Button(new GUIContent(TextureLoader.TrashIcon, "Delete"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22)))
+            var stateSequences = module.sequences.FindAll(s => s.startState == state);
+
+            if (stateSequences == null || stateSequences.Count == 0)
+                return;
+
+            for (int i = 0; i < stateSequences.Count; i++)
+            {
+                var sq = stateSequences[i];
+
+                var sequenceLine = GameObject.Instantiate(UIAssetsLoader.sequenceLinePrefab);
+                sequenceLine.transform.SetParent(sequencesArea.transform, false);
+
+                InitSequenceLinePrefab(sequenceLine, sq, module);
+
+                _sequenceUIControls.Add(sq, sequenceLine);
+            }
+        }
+
+        private void InitSequenceLinePrefab(GameObject sequenceLinePrefab, Sequence s, ModuleSequencer module)
+        {
+            var sequenceStatusHandle = sequenceLinePrefab.GetChild("SequenceStatusRawImage").GetComponent<RawImage>();
+            var sequenceDragHandler = sequenceStatusHandle.gameObject.AddComponent<SequenceDragHandler>();
+            sequenceDragHandler.mainCanvas = UIMasterController.Instance.appCanvas;
+            sequenceDragHandler.background = UIAssetsLoader.spriteAssets.Find(a => a.name == "IRWindowServoFrame_Drag");
+            sequenceDragHandler.draggedItem = sequenceLinePrefab;
+            sequenceDragHandler.linkedSequence = s;
+
+            var sequenceNameText = sequenceLinePrefab.GetChild("SequenceNameText").GetComponent<Text>();
+            sequenceNameText.text = s.name;
+            sequenceNameText.gameObject.SetActive(!guiControlWindowEditMode);
+
+            var sequenceNameInputField = sequenceLinePrefab.GetChild("SequenceNameInputField").GetComponent<InputField>();
+            sequenceNameInputField.text = s.name;
+            sequenceNameInputField.onEndEdit.AddListener(v => s.name = sequenceNameText.text = v);
+            sequenceNameInputField.gameObject.SetActive(guiControlWindowEditMode);
+            
+            var dropdownStateOptions = new List<Dropdown.OptionData>();
+            var sequenceEndStateIndex = 0;
+            for (int i = 0; i < module.states.Count; i++)
+            {
+                dropdownStateOptions.Add(new Dropdown.OptionData(module.states[i].stateName));
+                if (module.states[i] == s.endState)
+                    sequenceEndStateIndex = i;
+            }
+
+            var endStateText = sequenceLinePrefab.GetChild("EndStateNameText").GetComponent<Text>();
+            endStateText.text = s.endState.stateName;
+            endStateText.gameObject.SetActive(!guiControlWindowEditMode);
+
+            var endStateDropdown = sequenceLinePrefab.GetChild("EndStateDropdown").GetComponent<Dropdown>();
+
+            var template = endStateDropdown.transform.FindChild("Template");
+            var canvas = template.GetComponent<Canvas>();
+            if (canvas == null)
+                canvas = template.gameObject.AddComponent<Canvas>();
+            canvas.sortingLayerID = UIMasterController.Instance.appCanvas.sortingLayerID;
+
+            endStateDropdown.options = dropdownStateOptions;
+            endStateDropdown.value = sequenceEndStateIndex;
+            endStateDropdown.onValueChanged.AddListener(v =>
                 {
-                    sq.Pause();
-                    sq.Reset();
-                    if (openSequence == sq)
+                    var newEndState = module.states.Find(st => st.stateName == endStateDropdown.options[v].text);
+                    if (newEndState != null)
                     {
-                        guiSequenceEditor = false;
+                        s.endState = newEndState;
+                        endStateText.text = newEndState.stateName;
+                    }
+                });
+            endStateDropdown.gameObject.SetActive(guiControlWindowEditMode);
+
+
+            var sequenceToggleKeyInputField = sequenceLinePrefab.GetChild("SequenceToggleKey").GetComponent<InputField>();
+            sequenceToggleKeyInputField.text = s.keyShortcut;
+            sequenceToggleKeyInputField.onEndEdit.AddListener(v => s.keyShortcut = v);
+            sequenceToggleKeyInputField.gameObject.SetActive(true); //zodius wants it visible all the time
+
+
+            var sequenceAutoStartToggle = sequenceLinePrefab.GetChild("SequenceAutoStartToggle").GetComponent<Toggle>();
+            sequenceAutoStartToggle.isOn = s.autoStart;
+            sequenceAutoStartToggle.onValueChanged.AddListener(v => s.autoStart = v);
+
+            var sequenceStartToggle = sequenceLinePrefab.GetChild("SequenceStartToggle").GetComponent<Toggle>();
+            sequenceStartToggle.isOn = s.isActive;
+            sequenceStartToggle.interactable = !module.isLocked;
+            sequenceStartToggle.onValueChanged.AddListener(v =>
+                {
+                    if (s.isLocked)
+                        return;
+                    
+                    if (v && !s.isActive)
+                        s.Start(module.currentState);
+
+                    if (!v && s.isActive)
+                        s.Pause();
+
+                });
+
+            var sequenceStopButton = sequenceLinePrefab.GetChild("SequenceStopButton").GetComponent<Button>();
+            sequenceStopButton.onClick.AddListener(() =>
+                {
+                    sequenceStartToggle.onValueChanged.Invoke(false);
+
+                    if (!s.isLocked)
+                        s.Reset();
+
+                    if (openSequence != null && openSequence.sequenceID == s.sequenceID)
+                        ResetOpenSequenceCommandProgress();
+                });
+
+            var sequenceLoopToggle = sequenceLinePrefab.GetChild("SequenceLoopToggle").GetComponent<Toggle>();
+            sequenceLoopToggle.isOn = s.isLooped;
+            sequenceLoopToggle.onValueChanged.AddListener(v => s.isLooped = v);
+
+            var sequenceEditModeToggle = sequenceLinePrefab.GetChild("SequenceEditModeToggle").GetComponent<Toggle>();
+            sequenceEditModeToggle.isOn = (openSequence != null && openSequence.sequenceID == s.sequenceID);
+            sequenceEditModeToggle.onValueChanged.AddListener(v => ToggleSequenceEditor(s, v, sequenceEditModeToggle));
+
+            var sequenceCloneButton = sequenceLinePrefab.GetChild("SequenceCloneButton").GetComponent<Button>();
+            sequenceCloneButton.onClick.AddListener(() =>
+                {
+                    module.sequences.Add(new Sequence(s));
+                    guiRebuildPending = true;
+                });
+
+            var sequenceDeleteButton = sequenceLinePrefab.GetChild("SequenceDeleteButton").GetComponent<Button>();
+            sequenceDeleteButton.onClick.AddListener(() =>
+                {
+                    s.Pause();
+                    s.Reset();
+                    if (openSequence == s)
+                    {
+                        CloseEditorWindow();
                         openSequence = null;
                     }
-                    allSequences.RemoveAt(i);
-                    module.sequences.Remove(sq);
-                }
-                SetTooltipText ();
-                GUI.color = opaqueColor;
-                GUILayout.EndHorizontal();
-            }
+                    module.sequences.Remove(s);
 
-            GUILayout.EndVertical();
+                    guiRebuildPending = true;
+                });
+
         }
 
-        private void SequencerControlWindow(int windowID)
+        private void ToggleSequenceEditor(Sequence s, bool value, Toggle currentToggle)
         {
-            if (sequencers == null)
-                return;
-
-            GUI.color = opaqueColor;
-
-            GUILayout.BeginVertical();
-
-            for (int x=0; x < sequencers.Count; x++)
+            if (value)
             {
-                GUILayout.BeginHorizontal();
-                GUI.color = solidColor;
-
-                if (selectedSequencer == sequencers[x])
+                if(openSequence!= null && openSequence.sequenceID != s.sequenceID)
                 {
-                    sequencers[x].sequencerName = GUILayout.TextField(sequencers[x].sequencerName, textFieldStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-                }
-                else
-                {
-                    nameStyle.fontStyle = FontStyle.Bold;
-                    GUILayout.Label(sequencers[x].sequencerName, nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-                    nameStyle.fontStyle = FontStyle.Normal;
+                    //we need to close current window and rebuild it;
+                    _editorWindow.DestroyGameObjectImmediate();
+                    _editorWindow = null;
+                    _editorWindowFader = null;
                 }
 
-                bool sequencerEditToggle = (selectedSequencer == sequencers[x]);
-
-                bool seqiencerToggleVal = GUILayout.Toggle(sequencerEditToggle, new GUIContent(TextureLoader.EditIcon, "Edit Name"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22));
-                SetTooltipText();
-
-                if (sequencerEditToggle != seqiencerToggleVal)
+                var toggles = _controlWindow.GetComponentsInChildren<Toggle>(true);
+                for(int i=0; i<toggles.Length; i++)
                 {
-                    selectedSequencer = Equals (selectedSequencer, sequencers[x]) ? null : sequencers[x];
+                    if(toggles[i].name == "SequenceEditModeToggle" && toggles[i] != currentToggle)
+                    {
+                        toggles[i].isOn = false;
+                    }
                 }
 
-                GUILayout.Space (4);
+                openSequence = s;
 
-                if(GUILayout.Button("Add State", buttonStyle, GUILayout.Width(75), GUILayout.Height(22)))
-                {
-                    var newState = new SequencerState ();
-                    newState.stateName = "New State";
-                    sequencers[x].states.Add(newState);
-                }
-                GUI.color = opaqueColor;
-                GUILayout.EndHorizontal();
+                //init the window if necessary (most likely it is necessary)
+                if (!_editorWindowFader)
+                    InitEditorWindow();
 
-                GUILayout.BeginVertical();
-                for (int s = 0; s < sequencers[x].states.Count; s++)
-                {
-                    var st = sequencers [x].states [s];
-
-                    GUILayout.BeginHorizontal (GUILayout.Height (5));
-                    GUILayout.EndHorizontal ();
-
-                    GUILayout.BeginHorizontal();
-                    GUI.color = solidColor;
-
-                    if(sequencers[x].currentState == st)
-                    {
-                        GUILayout.Label ("<color=lime>»</color>", dotStyle, GUILayout.Width (20), GUILayout.Height (22));
-                    }
-                    else
-                    {
-                        GUILayout.Label ("<color=silver>-</color>", dotStyle, GUILayout.Width (20), GUILayout.Height (22));
-                    }
-
-
-                    if (selectedState == st)
-                    {
-                        st.stateName = GUILayout.TextField(st.stateName, textFieldStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-                    }
-                    else
-                    {
-                        nameStyle.fontStyle = FontStyle.Bold;
-                        GUILayout.Label(st.stateName, nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-                        nameStyle.fontStyle = FontStyle.Normal;
-                    }
-
-
-
-                    bool stateEditToggle = (selectedState == st);
-
-                    bool toggleVal = GUILayout.Toggle(stateEditToggle, new GUIContent(TextureLoader.EditIcon, "Edit State"), buttonStyle, GUILayout.Width(22), GUILayout.Height(22));
-                    SetTooltipText();
-
-                    if (stateEditToggle != toggleVal)
-                    {
-                        selectedState = Equals (selectedState, st) ? null : st;
-                    }
-
-                    if (sequencers [x].states.Count > 1) 
-                    {
-                        if (GUILayout.Button(new GUIContent(TextureLoader.TrashIcon, "Delete State. \n Will delete all Sequences in it."), buttonStyle, GUILayout.Width(22), GUILayout.Height(22))) 
-                        {
-                            //remove all affected sequences
-                            sequencers [x].sequences.RemoveAll (seq => (seq.startState == st || seq.endState == st));
-                            sequencers [x].states.Remove (st);
-                            if(sequencers[x].currentState == st)
-                            {
-                                //reset to the first state
-                                sequencers [x].currentState = sequencers [x].states [0];
-                            }
-                        }
-                    }
-
-                    GUILayout.Space (4);
-
-                    if(GUILayout.Button("Add Sequence", buttonStyle, GUILayout.Width(100), GUILayout.Height(22)))
-                    {
-                        var newSeq = new Sequence ();
-                        newSeq.startState = st;
-                        newSeq.endState = st;
-                        sequencers[x].sequences.Add(newSeq);
-                    }
-
-
-                    GUI.color = opaqueColor;
-                    GUILayout.EndHorizontal();
-
-                    GUILayout.BeginHorizontal();
-                    GUILayout.Space (30);
-                    DrawSequencerStateSequences (sequencers [x], st);
-                    GUILayout.EndHorizontal();
-
-                }
-                GUILayout.EndVertical();
+                _editorWindowFader.FadeTo(_UIAlphaValue, 0.1f);
 
             }
-
-            GUILayout.EndVertical();
-
-            GUI.color = opaqueColor;
-
-            GUI.DragWindow();
+            else
+            {
+                openSequence = null;
+                CloseEditorWindow();
+            }
         }
 
-        /// <summary>
-        /// Draws the text field and returns its value
-        /// Uses global variables lastFocusedControlName and lastFocusedTextFieldValue
-        /// </summary>
-        /// <returns>Entered value</returns>
-        /// <param name="controlName">Control name.</param>
-        /// <param name="value">Value.</param>
-        /// <param name="format">Format.</param>
-        /// <param name="style">Style.</param>
-        /// <param name="width">Width.</param>
-        /// <param name="height">Height.</param>
-        private string DrawTextField(string controlName, float value, string format, GUIStyle style, GUILayoutOption width, GUILayoutOption height)
+        private void ToggleControlWindowEditMode(bool value)
         {
-            string focusedControlName = GUI.GetNameOfFocusedControl ();
-
-            if (controlName == focusedControlName 
-                && lastFocusedTextFieldValue == "")
-            {
-                lastFocusedTextFieldValue = string.Format (format, value);
-            }
-
-            string tmp = (controlName == focusedControlName) 
-                ? lastFocusedTextFieldValue 
-                : string.Format (format, value);
-
-            GUI.SetNextControlName(controlName);
-            tmp = GUILayout.TextField(tmp, style, width, height);
-
-            if (controlName == focusedControlName 
-                && focusedControlName == lastFocusedControlName)
-                lastFocusedTextFieldValue = tmp;
-
-            return tmp;
+            //toggle edit mode
+            guiControlWindowEditMode = value;
+            guiRebuildPending = true;
         }
 
-
-        private void SequencerEditorWindow(int windowID)
+        private void InitEditorWindow(bool startSolid = true)
         {
-            if (openSequence == null)
-                return;
+            _editorWindow = GameObject.Instantiate(UIAssetsLoader.editorWindowPrefab);
+            _editorWindow.transform.SetParent(UIMasterController.Instance.appCanvas.transform, false);
+            _editorWindow.GetChild("WindowTitle").AddComponent<PanelDragger>();
+            _editorWindowFader = _editorWindow.AddComponent<CanvasGroupFader>();
 
-            if (IRWrapper.IRController.ServoGroups == null)
-                return;
+            _editorWindow.AddComponent<EditorLocker>();
 
-            GUI.color = opaqueColor;
+            //start invisible to be toggled later
+            if (!startSolid)
+                _editorWindow.GetComponent<CanvasGroup>().alpha = 0f;
 
-            string tmpString;
-            float tmpValue;
-
-            GUILayout.BeginVertical();
-            GUILayout.BeginHorizontal();
-            GUILayoutOption maxHeight = GUILayout.MaxHeight(Screen.height * 0.5f);
-
-            GUILayout.BeginVertical(GUILayout.Width(270));
-
-            //draw buttons here
-            GUILayout.BeginHorizontal();
-            var modes = new String[] {"Servos", "ActionGroups"};
-            GUI.color = solidColor;
-            currentMode = GUILayout.Toolbar (currentMode, modes, buttonStyle,  GUILayout.Height(22));
-            GUI.color = opaqueColor;
-            GUILayout.EndHorizontal();
-
-            var allServos = new List<IRWrapper.IServo>();
-
-            if (currentMode == 0) 
+            if (SequencerEditorWindowPosition == Vector3.zero)
             {
-                foreach (IRWrapper.IControlGroup g in IRWrapper.IRController.ServoGroups) 
-                {
-                    allServos.AddRange (g.Servos);
-                }
-
-                if (availableServoCommands == null) 
-                {
-                    availableServoCommands = new List<BasicCommand> ();    
-                }
-
-                if (allServos.Count != availableServoCommands.Count) 
-                {
-                    availableServoCommands.Clear ();
-                    //rebuild the list of available commands
-                    foreach (IRWrapper.IServo s in allServos) 
-                    {
-                        var bc = new BasicCommand (s, s.Position, 1f);
-                        availableServoCommands.Add (bc);
-                    }
-                }
-
-                if (openGroupsList == null)
-                {
-                    openGroupsList = new List<bool> ();
-                }
-                if(openGroupsList.Count != IRWrapper.IRController.ServoGroups.Count)
-                {
-                    openGroupsList.Clear ();
-                    for (int i=0; i<IRWrapper.IRController.ServoGroups.Count; i++)
-                    {
-                        openGroupsList.Add (IRWrapper.IRController.ServoGroups [i].Expanded);
-                    }
-                }
-
-                servoListScroll = GUILayout.BeginScrollView (servoListScroll, false, false, maxHeight);
-                for (int i = 0; i < IRWrapper.IRController.ServoGroups.Count; i++) 
-                {
-                    IRWrapper.IControlGroup g = IRWrapper.IRController.ServoGroups [i];
-
-                    //if (HighLogic.LoadedSceneIsFlight && FlightGlobals.ActiveVessel != g.Vessel)
-                    //    continue;
-                    
-                    if (g.Servos.Any ()) 
-                    {
-                        GUILayout.BeginHorizontal ();
-
-                        GUI.color = solidColor;
-                        if (openGroupsList [i]) 
-                        {
-                            openGroupsList [i] = !GUILayout.Button (TextureLoader.CollapseIcon, buttonStyle, GUILayout.Width (20), GUILayout.Height (22));
-                        } 
-                        else 
-                        {
-                            openGroupsList [i] = GUILayout.Button (TextureLoader.ExpandIcon, buttonStyle, GUILayout.Width (20), GUILayout.Height (22));
-                        }
-                        
-                        nameStyle.fontStyle = FontStyle.Bold;
-                        GUILayout.Label (g.Name, nameStyle, GUILayout.ExpandWidth (true), GUILayout.Height (22));
-                        nameStyle.fontStyle = FontStyle.Normal;
-                        GUI.color = opaqueColor;
-                        GUILayout.EndHorizontal ();
-
-                        if (openGroupsList [i]) 
-                        {
-                            GUILayout.BeginHorizontal (GUILayout.Height (5));
-                            GUILayout.EndHorizontal ();
-
-                            foreach (IRWrapper.IServo servo in g.Servos) 
-                            {
-                                GUILayout.BeginHorizontal (hoverStyle);
-                                GUI.color = solidColor;
-
-                                var avCommand = availableServoCommands.FirstOrDefault(t => t.servo.Equals(servo));
-
-                                if (avCommand == null) 
-                                {
-                                    Logger.Log ("[Sequencer] Cannot find matching command for servo " + servo.Name, Logger.Level.Debug);
-                                    return;
-                                }
-                               
-                                if (GUILayout.Button ("Add", buttonStyle, GUILayout.Width (30), GUILayout.Height (22))) 
-                                {
-                                    openSequence.Pause ();
-                                    openSequence.Reset ();
-                                    if (insertCommandIndex + 1 == openSequence.commands.Count)
-                                    {
-                                        openSequence.commands.Add (new BasicCommand (avCommand));
-                                        insertCommandIndex++;
-                                    }
-                                    else
-                                    {
-                                        openSequence.commands.Insert (insertCommandIndex + 1, new BasicCommand (avCommand));
-                                    }
-                                }
-                                
-                                GUILayout.Label (servo.Name, nameStyle, GUILayout.ExpandWidth (true), GUILayout.Height (22));
-
-                                Rect last = GUILayoutUtility.GetLastRect();
-                                Vector2 pos = Event.current.mousePosition;
-                                bool highlight = last.Contains(pos);
-                                servo.Highlight = highlight;
-
-                                var e = Event.current;
-                                if (e.isMouse && e.clickCount == 2 && last.Contains(e.mousePosition))
-                                {
-                                    avCommand.position = servo.Position;
-                                }
-
-                                string focusedControlName = GUI.GetNameOfFocusedControl ();
-                                string thisControlName = "SequencerPosition " + servo.UID;
-
-                                tmpString = DrawTextField (thisControlName, avCommand.position, "{0:#0.0#}", 
-                                    textFieldStyle, GUILayout.Width (40), GUILayout.Height (22));
-
-                                var valueChanged = (thisControlName == focusedControlName && 
-                                    (Event.current.keyCode == KeyCode.Return || Event.current.keyCode == KeyCode.KeypadEnter));
-
-                                if (float.TryParse (tmpString, out tmpValue) && valueChanged) 
-                                {
-                                    avCommand.position = Mathf.Clamp(tmpValue, avCommand.servo.MinPosition, avCommand.servo.MaxPosition);
-                                    lastFocusedTextFieldValue = "";
-                                }
-
-                                GUILayout.Label ("@", nameStyle, GUILayout.Height (22));
-
-                                thisControlName = "SequencerSpeed " + servo.UID;
-
-                                tmpString = DrawTextField (thisControlName, avCommand.speedMultiplier, "{0:#0.0#}", 
-                                    textFieldStyle, GUILayout.Width (30), GUILayout.Height (22));
-
-                                valueChanged = (thisControlName == focusedControlName && 
-                                    (Event.current.keyCode == KeyCode.Return || Event.current.keyCode == KeyCode.KeypadEnter));
-                                
-                                if (float.TryParse (tmpString, out tmpValue) && valueChanged)
-                                {
-                                    avCommand.speedMultiplier = Mathf.Clamp (tmpValue, 0.05f, 1000f);
-                                    lastFocusedTextFieldValue = "";
-                                }
-                                GUI.color = opaqueColor;
-                                GUILayout.EndHorizontal ();
-                            }
-
-                            GUILayout.BeginHorizontal (GUILayout.Height (5));
-                            GUILayout.EndHorizontal ();
-                        }
-                    
-                    }
-                }
-                GUILayout.EndScrollView ();
+                //get the default position from the prefab
+                SequencerEditorWindowPosition = _editorWindow.transform.position;
             }
-            else 
+            else
             {
-                //here goes actiongroup stuff
-                actionListScroll = GUILayout.BeginScrollView (actionListScroll, false, false, maxHeight);
-
-                //first list all the stock AGs
-                foreach (KSPActionGroup a in Enum.GetValues(typeof(KSPActionGroup)).Cast<KSPActionGroup>())
-                {
-                    if (a == KSPActionGroup.None)
-                        continue;
-                    
-                    GUILayout.BeginHorizontal ();
-                    GUI.color = solidColor;
-                    if (GUILayout.Button ("Add Toggle", buttonStyle, GUILayout.Width (80), GUILayout.Height (22))) 
-                    {
-                        openSequence.Pause ();
-                        openSequence.Reset ();
-                        
-                        var newCommand = new BasicCommand (a);
-
-                        if (insertCommandIndex + 1 == openSequence.commands.Count)
-                        {
-                            openSequence.commands.Add (newCommand);
-                            insertCommandIndex++;
-                        }
-                        else
-                        {
-                            openSequence.commands.Insert (insertCommandIndex + 1, newCommand);
-                        }
-                    }
-                    if (GUILayout.Button("Wait For", buttonStyle, GUILayout.Width(60), GUILayout.Height(22)))
-                    {
-                        openSequence.Pause();
-                        openSequence.Reset();
-
-                        var newCommand = new BasicCommand(a);
-                        newCommand.wait = true;
-
-                        if (insertCommandIndex + 1 == openSequence.commands.Count)
-                        {
-                            openSequence.commands.Add(newCommand);
-                            insertCommandIndex++;
-                        }
-                        else
-                        {
-                            openSequence.commands.Insert(insertCommandIndex + 1, newCommand);
-                        }
-                    }
-                    GUILayout.Label (a.ToString(), GUILayout.ExpandWidth (true), GUILayout.Height (22));
-                    GUI.color = opaqueColor;
-                    GUILayout.EndHorizontal ();
-                }
-
-                //now if AGX is installed, list all the groups
-                if(ActionGroupsExtendedAPI.Instance != null && ActionGroupsExtendedAPI.Instance.Installed())
-                {
-                    Dictionary<int, string> extendedGroups;
-
-                    if(HighLogic.LoadedSceneIsFlight)
-                    {
-                        extendedGroups = ActionGroupsExtendedAPI.Instance.GetAssignedGroups(FlightGlobals.ActiveVessel);
-                    }
-                    else
-                    {
-                        extendedGroups = ActionGroupsExtendedAPI.Instance.GetAssignedGroups();
-                    }
-                    foreach (var pair in extendedGroups)
-                    {
-                        GUILayout.BeginHorizontal();
-                        GUI.color = solidColor;
-                        if (GUILayout.Button("Add Toggle", buttonStyle, GUILayout.Width(80), GUILayout.Height(22)))
-                        {
-                            openSequence.Pause();
-                            openSequence.Reset();
-
-                            var newCommand = new BasicCommand(pair.Key);
-
-                            if (insertCommandIndex + 1 == openSequence.commands.Count)
-                            {
-                                openSequence.commands.Add(newCommand);
-                                insertCommandIndex++;
-                            }
-                            else
-                            {
-                                openSequence.commands.Insert(insertCommandIndex + 1, newCommand);
-                            }
-                        }
-                        if (GUILayout.Button("Wait For", buttonStyle, GUILayout.Width(60), GUILayout.Height(22)))
-                        {
-                            openSequence.Pause();
-                            openSequence.Reset();
-
-                            var newCommand = new BasicCommand(pair.Key);
-                            newCommand.wait = true;
-
-                            if (insertCommandIndex + 1 == openSequence.commands.Count)
-                            {
-                                openSequence.commands.Add(newCommand);
-                                insertCommandIndex++;
-                            }
-                            else
-                            {
-                                openSequence.commands.Insert(insertCommandIndex + 1, newCommand);
-                            }
-                        }
-                        GUILayout.Label(pair.Value, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-                        GUI.color = opaqueColor;
-                        GUILayout.EndHorizontal();
-                    }
-
-                }
-                GUILayout.EndScrollView ();
+                _editorWindow.transform.position = SequencerEditorWindowPosition;
             }
 
-            GUILayout.BeginHorizontal(GUILayout.Height(5));
-            GUILayout.Label("", GUILayout.ExpandWidth(true), GUILayout.Height(5));
-            GUILayout.EndHorizontal();
-
-            GUILayout.BeginVertical(GUI.skin.scrollView);
-            GUILayout.BeginHorizontal();
-            GUI.color = solidColor;
-            if (GUILayout.Button("Add", buttonStyle, GUILayout.Width(30), GUILayout.Height(22)))
+            if (SequencerEditorWindowSize == Vector2.zero)
             {
-                openSequence.Pause ();
-                openSequence.Reset ();
-                
-                var newCommand = new BasicCommand(true, currentDelay);
-                if (insertCommandIndex + 1 == openSequence.commands.Count)
-                {
-                    openSequence.commands.Add (newCommand);
-                    insertCommandIndex++;
-                }
-                else
-                {
-                    openSequence.commands.Insert (insertCommandIndex + 1, newCommand);
-                }
+                SequencerEditorWindowSize = _editorWindow.GetComponent<RectTransform>().sizeDelta;
+            }
+            else
+            {
+                _editorWindow.GetComponent<RectTransform>().sizeDelta = SequencerEditorWindowSize;
             }
 
-            GUILayout.Label("Delay for ", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-            tmpString = GUILayout.TextField(string.Format("{0:#0.0#}", currentDelay), textFieldStyle, GUILayout.Width(40), GUILayout.Height(22));
-            if (float.TryParse(tmpString, out tmpValue))
+            var settingsButton = _editorWindow.GetChild("WindowTitle").GetChild("LeftWindowButton");
+            if (settingsButton != null)
             {
-                currentDelay = Mathf.Clamp(tmpValue, 0f, 600f);
+                settingsButton.GetComponent<Button>().onClick.AddListener(ToggleSettingsWindow);
+                var t = settingsButton.AddComponent<BasicTooltip>();
+                t.tooltipText = "Show/hide UI settings";
             }
-            GUILayout.Label("s ", nameStyle, GUILayout.Width(18), GUILayout.Height(22));
+
+            var titleText = _editorWindow.GetChild("WindowTitle").GetComponent<Text>();
+            titleText.text = "Editing: " + openSequence.name;
+
+            var closeButton = _editorWindow.GetChild("WindowTitle").GetChild("RightWindowButton");
+            if (closeButton != null)
+            {
+                closeButton.GetComponent<Button>().onClick.AddListener(CloseEditorWindow);
+                var t = closeButton.AddComponent<BasicTooltip>();
+                t.tooltipText = "Close window";
+            }
+
+            var editorFooterButtons = _editorWindow.GetChild("WindowFooter").GetChild("WindowFooterButtonsHLG");
             
-            GUILayout.EndHorizontal();
-            GUILayout.BeginHorizontal();
+            var resizeHandler = editorFooterButtons.GetChild("ResizeHandle").AddComponent<PanelResizer>();
+            resizeHandler.rectTransform = _editorWindow.transform as RectTransform;
+            resizeHandler.minSize = new Vector2(450, 365);
+            resizeHandler.maxSize = new Vector2(2000, 1600);
 
-            if (GUILayout.Button("Add", buttonStyle, GUILayout.Width(30), GUILayout.Height(22)))
-            {
-                openSequence.Pause ();
-                openSequence.Reset ();
-                
-                var newCommand = new BasicCommand(true);
-                if (insertCommandIndex + 1 == openSequence.commands.Count)
+            var leftPane = _editorWindow.GetChild("WindowContent").GetChild("Panes").GetChild("LeftPane").GetChild("CommandZone");
+            var moveServoTemplate = leftPane.GetChild("MoveZoneHLG");
+            var moveServoDetails = moveServoTemplate.GetChild("MoveDetails").GetChild("ServoDataVLG");
+
+            var moveToInputField = moveServoDetails.GetChild("MoveToHLG").GetChild("MoveToPositionInputField").GetComponent<InputField>();
+            moveToInputField.text = string.Format("{0:#0.00}", moveToValue);
+            moveToInputField.onEndEdit.AddListener(v =>
                 {
-                    openSequence.commands.Add (newCommand);
-                    insertCommandIndex++;
-                }
-                else
+                    float tmp = 0f;
+
+                    if (float.TryParse(v, out tmp))
+                    {
+                        moveToValue = tmp;
+                    }
+                });
+
+            var moveAtInputField = moveServoDetails.GetChild("MoveToHLG").GetChild("MoveToSpeedInputField").GetComponent<InputField>();
+            moveAtInputField.text = string.Format("{0:#0.0}", moveAtValue);
+            moveAtInputField.onEndEdit.AddListener(v =>
                 {
-                    openSequence.commands.Insert (insertCommandIndex + 1, newCommand);
-                }
-            }
-            GUILayout.Label("Wait for Moves", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-            GUILayout.EndHorizontal();
+                    float tmp = 0f;
 
-            GUILayout.BeginHorizontal();
+                    if (float.TryParse(v, out tmp))
+                    {
+                        moveAtValue = tmp;
+                    }
+                });
 
-            if (GUILayout.Button("Add", buttonStyle, GUILayout.Width(30), GUILayout.Height(22)))
+            var servoGroupsDropdownList = new List<Dropdown.OptionData>();
+            foreach (IRWrapper.IControlGroup g in IRWrapper.IRController.ServoGroups)
             {
-                openSequence.Pause ();
-                openSequence.Reset ();
-                
-                var newCommand = new BasicCommand(currentGotoIndex, currentGotoCounter);
-                if (insertCommandIndex + 1 == openSequence.commands.Count)
+                servoGroupsDropdownList.Add(new Dropdown.OptionData(g.Name));
+            }
+
+            var servoGroupsDropdown = moveServoDetails.GetChild("GroupDropdown").GetComponent<Dropdown>();
+            servoGroupsDropdown.options = servoGroupsDropdownList;
+            servoGroupsDropdown.value = selectedGroupIndex;
+
+            var canvas = servoGroupsDropdown.template.gameObject.AddOrGetComponent<Canvas>();
+            canvas.sortingLayerID = UIMasterController.Instance.appCanvas.sortingLayerID;
+
+            var servosDropdownList = new List<Dropdown.OptionData>();
+            foreach (var s in IRWrapper.IRController.ServoGroups[selectedGroupIndex].Servos)
+            {
+                servosDropdownList.Add(new Dropdown.OptionData(s.Name));
+            }
+
+            var servosDropdown = moveServoDetails.GetChild("ServoDropdown").GetComponent<Dropdown>();
+            servosDropdown.options = servosDropdownList;
+            servosDropdown.value = selectedServoIndex;
+
+            canvas = servosDropdown.template.gameObject.AddOrGetComponent<Canvas>();
+            canvas.sortingLayerID = UIMasterController.Instance.appCanvas.sortingLayerID;
+
+            var servoHighlighter = servosDropdown.gameObject.AddComponent<ServoHighlighter>();
+            servoHighlighter.servo = IRWrapper.IRController.ServoGroups[selectedGroupIndex].Servos[selectedServoIndex];
+
+            servosDropdown.onValueChanged.AddListener(v =>
                 {
-                    openSequence.commands.Add (newCommand);
-                    insertCommandIndex++;
-                }
-                else
-                {
-                    openSequence.commands.Insert (insertCommandIndex + 1, newCommand);
-                }
-            }
-
-            GUILayout.BeginVertical();
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Go To Command #", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-            if (GUILayout.Button ("-", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
-            {
-                currentGotoIndex = Math.Max (currentGotoIndex - 1, 0);
-                currentGotoIndexString = (currentGotoIndex+1).ToString ();
-            }
-            currentGotoIndexString = GUILayout.TextField(string.Format("{0:#0}", currentGotoIndexString), textFieldStyle, GUILayout.Width(25), GUILayout.Height(22));
-
-            if (float.TryParse(currentGotoIndexString, out tmpValue))
-            {
-                currentGotoIndex = (int)Mathf.Clamp(tmpValue-1, 0f, openSequence.commands.Count-1);
-            }
-
-            if (GUILayout.Button ("+", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
-            {
-                currentGotoIndex = Math.Max (Math.Min (currentGotoIndex + 1, openSequence.commands.Count-1), 0);
-                currentGotoIndexString = (currentGotoIndex+1).ToString ();
-            }
-            GUILayout.EndHorizontal();
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Repeat (-1 for loop)", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-            if (GUILayout.Button ("-", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
-            {
-                currentGotoCounter = Math.Max (currentGotoCounter - 1, -1);
-            }
-
-            tmpString = GUILayout.TextField(string.Format("{0:#0}", currentGotoCounter), textFieldStyle, GUILayout.Width(25), GUILayout.Height(22));
-            if (float.TryParse(tmpString, out tmpValue))
-            {
-                currentGotoCounter = (int)Math.Max(tmpValue, -1);
-            }
-            if (GUILayout.Button ("+", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
-            {
-                currentGotoCounter = Math.Max (currentGotoCounter + 1, -1);
-            }
-            GUILayout.EndHorizontal();
-            GUILayout.EndVertical();
+                    selectedServoIndex = v;
+                    moveToValue = IRWrapper.IRController.ServoGroups[selectedGroupIndex].Servos[selectedServoIndex].Position;
+                    moveToInputField.text = string.Format("{0:#0.00}", moveToValue);
+                    servoHighlighter.servo = IRWrapper.IRController.ServoGroups[selectedGroupIndex].Servos[selectedServoIndex];
+                });
             
-            GUILayout.EndHorizontal();
-            GUI.color = opaqueColor;
-            GUILayout.EndVertical();
+            servoGroupsDropdown.onValueChanged.AddListener(v =>
+                {
+                    selectedGroupIndex = v;
+                    servosDropdownList.Clear();
+                    foreach (var s in IRWrapper.IRController.ServoGroups[selectedGroupIndex].Servos)
+                    {
+                        servosDropdownList.Add(new Dropdown.OptionData(s.Name));
+                    }
+                    servosDropdown.options = servosDropdownList;
+                    servosDropdown.onValueChanged.Invoke(0);
+                });
+            
+            var addMoveCommandButton = moveServoTemplate.GetChild("MoveAddButton").GetComponent<Button>();
+            addMoveCommandButton.onClick.AddListener(() =>
+                {
+                    var servo = IRWrapper.IRController.ServoGroups[selectedGroupIndex].Servos[selectedServoIndex];
+                
+                    var bc = new BasicCommand(servo, moveToValue, moveAtValue);
 
-            GUILayout.EndVertical ();
-            GUILayout.BeginVertical();
+                    openSequence.commands.Add(bc);
 
-            commandListScroll = GUILayout.BeginScrollView(commandListScroll, false, false, maxHeight);
-            GUILayout.BeginVertical();
-            GUILayout.BeginHorizontal();
-            GUI.color = solidColor;
-            GUILayout.Label("Commands:", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-            GUI.color = opaqueColor;
-            GUILayout.EndHorizontal();
+                    guiRebuildPending = true;
+                });
 
-            //set pointer to last command
-            if (insertCommandIndex < -1 || insertCommandIndex >= openSequence.commands.Count)
-                insertCommandIndex = openSequence.commands.Count-1;
 
-            if (insertCommandIndex == -1) 
+            var AGToggleZone = leftPane.GetChild("AGToggleZoneHLG");
+            var AGToggleDropDown = AGToggleZone.GetChild("AGToggleDetails").GetChild("ActionGroupDropdown").GetComponent<Dropdown>();
+
+            //first list all the stock AGs into global vars
+            if (actionGroupsOptions == null)
+                actionGroupsOptions = new List<Dropdown.OptionData>();
+            else
+                actionGroupsOptions.Clear();
+            
+            stockActionGroups = (KSPActionGroup[])Enum.GetValues(typeof(KSPActionGroup));
+
+            foreach (KSPActionGroup a in stockActionGroups)
             {
-                playheadStyle.normal.background = TextureLoader.ToggleBGHover;
-                GUILayout.BeginHorizontal (GUILayout.Height(1));
-                GUILayout.Label ("", playheadStyle, GUILayout.Height(1));
-                GUILayout.EndHorizontal ();
-            } 
-            else 
-            {
-                playheadStyle.normal.background = null;
+                if (a == KSPActionGroup.None)
+                    continue;
+
+                actionGroupsOptions.Add(new Dropdown.OptionData(a.ToString()));
+
             }
-
-            //now begin listing commands in sequence
-            for (int i = 0; i < openSequence.commands.Count; i++ )
+            /*
+            //now if AGX is installed, list all the groups
+            if (ActionGroupsExtendedAPI.Instance != null && ActionGroupsExtendedAPI.Instance.Installed())
             {
-                BasicCommand bc = openSequence.commands[i];
+                Dictionary<int, string> extendedGroups;
 
-                if (openSequence.lastCommandIndex == i)
+                if (HighLogic.LoadedSceneIsFlight)
                 {
-                    playheadStyle.normal.background = openSequence.commands[i].isActive ? TextureLoader.PlayheadBG : TextureLoader.PlayheadBGPaused;
-                    GUILayout.BeginHorizontal(playheadStyle);
+                    extendedGroups = ActionGroupsExtendedAPI.Instance.GetAssignedGroups(FlightGlobals.ActiveVessel);
                 }
                 else
                 {
-                    playheadStyle.normal.background = null;
-                    GUILayout.BeginHorizontal(playheadStyle);
+                    extendedGroups = ActionGroupsExtendedAPI.Instance.GetAssignedGroups();
                 }
 
-                GUI.color = solidColor;
-                string commandStatus = (bc.isActive || openSequence.lastCommandIndex == i) ? "<color=lime>■</color>" : bc.isFinished ? "<color=green>■</color>" : "<color=silver>■</color>";
-                if (openSequence.lastCommandIndex == i && !bc.isActive)
-                    commandStatus = "<color=yellow>■</color>";
-                GUILayout.Label(commandStatus, dotStyle, GUILayout.Width(20), GUILayout.Height(22));
-
-                //GUILayout.Label((i+1).ToString() + ":", dotStyle, GUILayout.Width(25), GUILayout.Height(22));
-
-                if(GUILayout.Toggle((i == insertCommandIndex), new GUIContent((i+1).ToString() + ":", "Insert After"), insertToggleStyle, GUILayout.Width(25), GUILayout.Height(22)))
+                foreach (var pair in extendedGroups)
                 {
-                    insertCommandIndex = i;
-                }
-                else if (insertCommandIndex==i)
-                {
-                    insertCommandIndex = -1;
+                    actionGroupsOptions.Add(new Dropdown.OptionData(pair.Value));
                 }
 
-                var labelText = "";
-                if (bc.wait)
+                //consider creating a separate box for AGX
+            }
+            */
+
+            AGToggleDropDown.options = actionGroupsOptions;
+            canvas = AGToggleDropDown.template.gameObject.AddOrGetComponent<Canvas>();
+            canvas.sortingLayerID = UIMasterController.Instance.appCanvas.sortingLayerID;
+
+            AGToggleDropDown.value = actionGroupsOptions.FindIndex(t => t.text == selectedToggleAG.ToString());
+            AGToggleDropDown.onValueChanged.AddListener(v =>
                 {
-                    if (bc.waitTime > 0f)
+                    //selectedToggleAG = stockActionGroups[v+1]; //because we skipped KSPActionGroup.none
+                    selectedToggleAG = stockActionGroups.FirstOrDefault(x => x.ToString() == actionGroupsOptions[v].text);
+                });
+
+            var addToggleAGCommandButton = AGToggleZone.GetChild("AGToggleAddButton").GetComponent<Button>();
+            addToggleAGCommandButton.onClick.AddListener(() =>
+                {
+                    var bc = new BasicCommand(selectedToggleAG);
+                    openSequence.commands.Add(bc);
+                    guiRebuildPending = true;
+                });
+
+            var waitForServosAddButton = leftPane.GetChild("WaitForServoZoneHLG").GetChild("WaitForServoAddButton").GetComponent<Button>();
+            waitForServosAddButton.onClick.AddListener(() =>
+                {
+                    var bc = new BasicCommand(true);
+                    openSequence.commands.Add(bc);
+
+                    guiRebuildPending = true;
+                });
+
+            var AGWaitZone = leftPane.GetChild("AGWaitZoneHLG");
+            var AGWaitDropDown = AGWaitZone.GetChild("AGWaitDetails").GetChild("ActionGroupDropdown").GetComponent<Dropdown>();
+
+            AGWaitDropDown.options = actionGroupsOptions;
+            canvas = AGWaitDropDown.template.gameObject.AddOrGetComponent<Canvas>();
+            canvas.sortingLayerID = UIMasterController.Instance.appCanvas.sortingLayerID;
+
+            AGWaitDropDown.value = actionGroupsOptions.FindIndex(t => t.text == selectedWaitAG.ToString());
+            AGWaitDropDown.onValueChanged.AddListener(v =>
+                {
+                    //selectedWaitAG = stockActionGroups[v+1]; //because we skipped KSPActionGroup.none
+                    selectedWaitAG = stockActionGroups.FirstOrDefault(x => x.ToString() == actionGroupsOptions[v].text);
+                });
+
+            var addWaitAGCommandButton = AGWaitZone.GetChild("AGWaitAddButton").GetComponent<Button>();
+            addWaitAGCommandButton.onClick.AddListener(() =>
+                {
+                    var bc = new BasicCommand(selectedWaitAG);
+                    bc.wait = true;
+
+                    openSequence.commands.Add(bc);
+                    guiRebuildPending = true;
+                });
+
+
+            var delayZone = leftPane.GetChild("DelayZoneHLG");
+            var delayTimeInputField = delayZone.GetChild("DelayDetails").GetChild("DelayZone").GetChild("DelayInputField").GetComponent<InputField>();
+            delayTimeInputField.text = string.Format("{0:#0.0}", delayTimeValue);
+            delayTimeInputField.onEndEdit.AddListener(v =>
+                {
+                    float tmp = 0f;
+
+                    if (float.TryParse(v, out tmp))
                     {
-                        if (bc.isActive)
-                            labelText = "Delaying for " + Math.Round(bc.timeStarted + bc.waitTime - UnityEngine.Time.time, 2) + "s";
-                        else
-                            labelText = "Delay for " + Math.Round(bc.waitTime, 2) + "s";
+                        delayTimeValue = tmp;
                     }
-                    else if (bc.gotoIndex != -1)
-                    {
-                        labelText = "Go To Command # " + (bc.gotoIndex + 1).ToString();
-                        if (bc.gotoCounter != -1)
-                        {
-                            labelText += ", " + bc.gotoCounter + " more times.";
-                        }
-                    }
-                    else if (bc.ag != KSPActionGroup.None || bc.agX > -1)
-                    {
-                        labelText = (bc.isActive ? "Waiting" : "Wait") + " for AG: ";
-                        if (ActionGroupsExtendedAPI.Instance != null && ActionGroupsExtendedAPI.Instance.Installed() && bc.agX > -1)
-                            labelText += ActionGroupsExtendedAPI.Instance.GetGroupName(bc.agX);
-                        else
-                            labelText += bc.ag.ToString();
-                    }
-                    else
-                        labelText = (bc.isActive ? "Waiting" : "Wait") + " for Moves";
-                }
-                else if (bc.servo != null) 
-                    labelText = bc.servo.Name + " to " + Math.Round(bc.position, 2).ToString() + " at " + Math.Round(bc.speedMultiplier, 2).ToString() + "x";
-                else if (bc.ag != KSPActionGroup.None)
-                {
-                    labelText = "Toggle ActionGroup: " + bc.ag.ToString ();
-                }
-                else if (ActionGroupsExtendedAPI.Instance != null && ActionGroupsExtendedAPI.Instance.Installed() && bc.agX > -1)
-                {
-                    labelText = "Toggle ActionGroup: " + ActionGroupsExtendedAPI.Instance.GetGroupName(bc.agX);
-                }
+                });
 
-                GUILayout.Label(labelText, nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-                if (i > 0)
+            var addDelayCommandButton = delayZone.GetChild("DelayAddButton").GetComponent<Button>();
+            addDelayCommandButton.onClick.AddListener(() =>
                 {
-                    if (GUILayout.Button(TextureLoader.UpIcon, buttonStyle, GUILayout.Width(20), GUILayout.Height(22)))
+                    var bc = new BasicCommand(true, delayTimeValue);
+
+                    openSequence.commands.Add(bc);
+
+                    guiRebuildPending = true;
+                });
+
+            var repeatZone = leftPane.GetChild("RepeatZoneHLG");
+            var repeatDetails = repeatZone.GetChild("RepeatDetails").GetChild("RepeatDataVLG");
+
+            var gotoIndexInputField = repeatDetails.GetChild("GotoHLG").GetChild("GotoIndexInputField").GetComponent<InputField>();
+            gotoIndexInputField.text = string.Format("{0:#0}", repeatLineIndexValue);
+            gotoIndexInputField.onEndEdit.AddListener(v =>
+                {
+                    int tmp;
+                    if (int.TryParse(v, out tmp))
                     {
+                        repeatLineIndexValue = tmp;
+                    }
+                });
+
+            var repeatInputField = repeatDetails.GetChild("RepeatHLG").GetChild("RepeatInputField").GetComponent<InputField>();
+            repeatInputField.text = string.Format("{0:#0}", repeatTimesValue);
+            repeatInputField.onEndEdit.AddListener(v =>
+                {
+                    int tmp;
+                    if (int.TryParse(v, out tmp))
+                    {
+                        repeatTimesValue = tmp;
+                    }
+                });
+
+            var addRepeatButton = repeatZone.GetChild("RepeatAddButton").GetComponent<Button>();
+            addRepeatButton.onClick.AddListener(() =>
+                {
+                    var bc = new BasicCommand(repeatLineIndexValue, repeatTimesValue);
+
+                    openSequence.commands.Add(bc);
+
+                    guiRebuildPending = true;
+                });
+
+            //now hook in Sequence control buttons
+            var footerButtonsZone = _editorWindow.GetChild("WindowContent").GetChild("Panes").GetChild("LeftPane").GetChild("FooterButtonsHLG");
+            var sequenceStartToggle = footerButtonsZone.GetChild("SequenceStartToggle").GetComponent<Toggle>();
+            sequenceStartToggle.isOn = openSequence.isActive;
+            sequenceStartToggle.onValueChanged.AddListener(v =>
+                {
+                    if (openSequence.isLocked)
+                        return;
+                    var module = sequencers.Find(s => s.sequences.Contains(openSequence));
+                    if (v && !openSequence.isActive)
+                        openSequence.Start(module.currentState);
+
+                    if (!v && openSequence.isActive)
                         openSequence.Pause();
-                        var tmp = openSequence.commands[i - 1];
-                        openSequence.commands[i - 1] = bc;
-                        openSequence.commands[i] = tmp;
-                        openSequence.Reset();
-                    }
-                }
-                else
-                    GUILayout.Space(24);
+                });
 
-                if (i < openSequence.commands.Count - 1)
+            var sequenceStopButton = footerButtonsZone.GetChild("SequenceStopButton").GetComponent<Button>();
+            sequenceStopButton.onClick.AddListener(() =>
                 {
-                    if (GUILayout.Button(TextureLoader.DownIcon, buttonStyle, GUILayout.Width(20), GUILayout.Height(22)))
-                    {
-                        openSequence.Pause();
-                        var tmp = openSequence.commands[i + 1];
-                        openSequence.commands[i + 1] = bc;
-                        openSequence.commands[i] = tmp;
-                        openSequence.Reset();
-                    }
-                }
-                else
-                    GUILayout.Space(24);
-
-                //insert edit button/toggle here
-
-                if (GUILayout.Button(new GUIContent(TextureLoader.EditIcon, "Edit"), buttonStyle, GUILayout.Width(20), GUILayout.Height(22)))
-                {
-                    openSequence.Pause();
-                    //code for editing command
-                    //open separate window with selected basic command
-                    selectedBasicCommandIndex = i;
-                    selectedBasicCommand = bc;
-                    guiCommandEditor = true;
-                    SequencerCommandEditorWindowPos = new Rect(Input.mousePosition.x - 100, Screen.height - Input.mousePosition.y + 17, 10, 10);
+                    sequenceStartToggle.onValueChanged.Invoke(false);
                     openSequence.Reset();
-                }
-                if (GUILayout.Button(TextureLoader.TrashIcon, buttonStyle, GUILayout.Width(20), GUILayout.Height(22)))
-                {
-                    openSequence.Pause();
-                    openSequence.commands.RemoveAt(i);
-                    openSequence.Reset();
-                }
-                GUI.color = opaqueColor;
-                GUILayout.EndHorizontal();
+                    ResetOpenSequenceCommandProgress();
+                });
 
-                if (i == insertCommandIndex) 
-                {
-                    playheadStyle.normal.background = TextureLoader.ToggleBGHover;
-                    GUILayout.BeginHorizontal (GUILayout.Height(1));
-                    GUILayout.Label ("", playheadStyle, GUILayout.Height(1));
-                    GUILayout.EndHorizontal ();
-                } 
-                else 
-                {
-                    playheadStyle.normal.background = null;
-                }
-                    
-            }
-            
-            GUILayout.EndVertical();
-            GUILayout.EndScrollView();
-
-            GUILayout.BeginHorizontal();
-
-            GUI.color = solidColor;
-
-            bool playToggle = GUILayout.Toggle(openSequence.isActive,
-                   openSequence.isActive ? "Pause" : "Play",
-                   buttonStyle, GUILayout.Width(100), GUILayout.Height(22));
-            SetTooltipText();
-
-            if (playToggle && !openSequence.isLocked)
-            {
-                if (playToggle != openSequence.isActive)
-                {
-                    var currentModule = sequencers.Find (s => s.sequences.Contains (openSequence));
-                    if (currentModule != null)
-                    {
-                        openSequence.Start(currentModule.currentState);
-                    }
-                    else
-                    {
-                        Logger.Log ("Could not find sequencer for openSequence, panic!", Logger.Level.Warning);
-                    }
-                }
-            }
-            else if (!openSequence.isLocked)
-            {
-                if (playToggle != openSequence.isActive && !openSequence.isFinished)
-                {
-                    openSequence.Pause();
-                }
-            }
-
-            if (GUILayout.Button("Step", buttonStyle, GUILayout.Width(100), GUILayout.Height(22)))
-            {
-                if (!openSequence.isLocked)
+            var sequenceStepButton = footerButtonsZone.GetChild("SequenceStepButton").GetComponent<Button>();
+            sequenceStepButton.onClick.AddListener(() =>
                 {
                     openSequence.Step();
+                });
+
+            var sequenceLoopToggle = footerButtonsZone.GetChild("SequenceLoopToggle").GetComponent<Toggle>();
+            sequenceLoopToggle.isOn = openSequence.isLooped;
+            sequenceLoopToggle.onValueChanged.AddListener(v => openSequence.isLooped = v);
+
+            if (_openSequenceCommandControls == null)
+                _openSequenceCommandControls = new Dictionary<BasicCommand, GameObject>();
+            else
+                _openSequenceCommandControls.Clear();
+
+            //now we can display commands on the right pane
+            var commandsArea = _editorWindow.GetChild("WindowContent").GetChild("Panes").GetChild("RightPane").GetChild("Viewport").GetChild("Content").GetChild("CommandsVLG");
+            commandsArea.AddComponent<CommandDropHandler>();
+
+            for (int i = 0; i < openSequence.commands.Count; i++)
+            {
+                var bc = openSequence.commands[i];
+
+                var commandLine = GameObject.Instantiate(UIAssetsLoader.sequenceCommandLinePrefab);
+                commandLine.transform.SetParent(commandsArea.transform, false);
+
+                InitCommandLine(commandLine, bc);
+
+                _openSequenceCommandControls.Add(bc, commandLine);
+            }
+        }
+
+        private void InitCommandLine(GameObject commandLinePrefab, BasicCommand bc)
+        {
+            bool isServoCommand = (bc.servo != null);
+            bool isToggleAGCommand = (bc.ag != KSPActionGroup.None && bc.wait == false);
+            bool isWaitAGCommand = (bc.ag != KSPActionGroup.None && bc.wait);
+            bool isDelayCommand = bc.wait && (bc.waitTime > 0f);
+            bool isRepeatCommand = (bc.gotoIndex != -1);
+            bool isWaitForServosCommands = bc.wait && !isWaitAGCommand && !isDelayCommand && !isRepeatCommand;
+
+
+            var backgroundImage = commandLinePrefab.GetComponent<Image>();
+            var progressBarImage = commandLinePrefab.GetChild("CommandProgressBar").GetComponent<Image>();
+
+            if (isServoCommand || isToggleAGCommand)
+                backgroundImage.sprite = progressBarImage.sprite = UIAssetsLoader.spriteAssets.Find(i => i.name == "IRWindowButtonGreen");
+            else if (isRepeatCommand)
+                backgroundImage.sprite = progressBarImage.sprite = UIAssetsLoader.spriteAssets.Find(i => i.name == "IRWindowButtonYellow");
+            else
+                backgroundImage.sprite = progressBarImage.sprite = UIAssetsLoader.spriteAssets.Find(i => i.name == "IRWindowButtonRed");
+
+            var commandDragHandle = commandLinePrefab.GetChild("CommandDragHandle");
+            var commandStatusRawImage = commandDragHandle.GetComponent<RawImage>();
+
+            if (openSequence.isActive || openSequence.IsPaused) //we only need to display statuses when we are in play/pause/step
+            {
+                if (bc.isActive)
+                {
+                    commandStatusRawImage.texture = UIAssetsLoader.iconAssets.Find(i => i.name == "IRWindowIndicator_Active");
+                }
+                else if (bc.isFinished)
+                {
+                    commandStatusRawImage.texture = UIAssetsLoader.iconAssets.Find(i => i.name == "IRWindowIndicator_Finished");
+                }
+                else
+                {
+                    commandStatusRawImage.texture = UIAssetsLoader.iconAssets.Find(i => i.name == "IRWindowIndicator_Idle");
                 }
             }
-            
-            if (GUILayout.Button("Stop", buttonStyle, GUILayout.Width(100), GUILayout.Height(22)))
+
+            var dragHandler = commandDragHandle.AddComponent<CommandDragHandler>();
+            dragHandler.mainCanvas = UIMasterController.Instance.appCanvas;
+            dragHandler.draggedItem = commandLinePrefab;
+            dragHandler.linkedCommand = bc;
+
+            var commandLineNumberText = commandLinePrefab.GetChild("CommandNumberLabel").GetComponent<Text>();
+            commandLineNumberText.text = string.Format("{0:#0}", openSequence.commands.FindIndex(c => c == bc));
+
+            var commandText = commandLinePrefab.GetChild("CommandTextLabel").GetComponent<Text>();
+
+            if (isServoCommand)
             {
-                if (!openSequence.isLocked)
+                commandText.text = "Move";
+            }
+            else if (isToggleAGCommand)
+            {
+                commandText.text = "Toggle";
+            }
+            else if (isWaitAGCommand)
+            {
+                commandText.text = "Wait for";
+            }
+            else if (isWaitForServosCommands)
+            {
+                commandText.text = "Wait for commands";
+                commandText.gameObject.GetComponent<LayoutElement>().minWidth = 100;
+            }
+            else if (isDelayCommand)
+            {
+                commandText.text = "Delay for";
+            }
+            else if (isRepeatCommand)
+            {
+                commandText.text = "Goto line#";
+            }
+            else
+                commandText.text = "Unknown command";
+
+            commandText.gameObject.SetActive(true);
+            
+            var servoDropdown = commandLinePrefab.GetChild("ServoDropdown").GetComponent<Dropdown>();
+
+            if (isServoCommand)
+            {
+                var allServos = new List<IRWrapper.IServo>();
+                var servosDropdownList = new List<Dropdown.OptionData>();
+                foreach (IRWrapper.IControlGroup g in IRWrapper.IRController.ServoGroups)
+                {
+                    allServos.AddRange(g.Servos);
+                }
+
+                int commandServoIndex = -1;
+                for (int i = 0; i < allServos.Count; i++)
+                {
+                    var s = allServos[i];
+                    servosDropdownList.Add(new Dropdown.OptionData(s.Name));
+                    if (bc.servo.UID == s.UID)
+                        commandServoIndex = i;
+                }
+
+                servoDropdown.options = servosDropdownList;
+                var canvas = servoDropdown.template.gameObject.AddOrGetComponent<Canvas>();
+                canvas.sortingLayerID = UIMasterController.Instance.appCanvas.sortingLayerID;
+
+                var servoHighlighter = servoDropdown.gameObject.AddComponent<ServoHighlighter>();
+                servoHighlighter.servo = bc.servo;
+
+                servoDropdown.value = commandServoIndex;
+                servoDropdown.onValueChanged.AddListener(v =>
+                    {
+                        bc.servo = allServos[v];
+                        servoHighlighter.servo = bc.servo;
+                    });
+            }
+            servoDropdown.gameObject.SetActive(isServoCommand);
+
+            var moveToInputField = commandLinePrefab.GetChild("MoveToPositionInputField").GetComponent<InputField>();
+            moveToInputField.text = string.Format("{0:#0.00}", bc.position);
+            moveToInputField.onEndEdit.AddListener(v =>
+                {
+                    float tmp;
+                    if (float.TryParse(v, out tmp))
+                    {
+                        bc.position = tmp;
+                    }
+                });
+            moveToInputField.gameObject.SetActive(isServoCommand);
+            commandLinePrefab.GetChild("MoveToLabel").SetActive(isServoCommand);
+            commandLinePrefab.GetChild("MoveSpeedLabel").SetActive(isServoCommand);
+
+            var moveAtInputField = commandLinePrefab.GetChild("MoveToSpeedInputField").GetComponent<InputField>();
+            moveAtInputField.text = string.Format("{0:#0.00}", bc.speedMultiplier);
+            moveAtInputField.onEndEdit.AddListener(v =>
+                {
+                    float tmp;
+                    if (float.TryParse(v, out tmp))
+                    {
+                        bc.speedMultiplier = tmp;
+                    }
+                });
+            moveAtInputField.gameObject.SetActive(isServoCommand);
+
+            if (isToggleAGCommand || isWaitAGCommand)
+            {
+                var AGDropdown = commandLinePrefab.GetChild("ActionGroupDropdown").GetComponent<Dropdown>();
+
+                AGDropdown.options = actionGroupsOptions;
+                var canvas = AGDropdown.template.gameObject.AddOrGetComponent<Canvas>();
+                canvas.sortingLayerID = UIMasterController.Instance.appCanvas.sortingLayerID;
+
+                AGDropdown.value = actionGroupsOptions.FindIndex(t => t.text == bc.ag.ToString());
+                AGDropdown.onValueChanged.AddListener(v =>
+                    {
+                        bc.ag = stockActionGroups.FirstOrDefault(x => x.ToString() == actionGroupsOptions[v].text);
+                    });
+                AGDropdown.gameObject.SetActive(isToggleAGCommand || isWaitAGCommand);
+            }
+
+            if (isDelayCommand)
+            {
+                var delayInputField = commandLinePrefab.GetChild("CommandDelayInputField").GetComponent<InputField>();
+                delayInputField.text = string.Format("{0:#0.0}", bc.waitTime);
+                delayInputField.onEndEdit.AddListener(v =>
+                    {
+                        float tmp;
+                        if (float.TryParse(v, out tmp))
+                        {
+                            bc.waitTime = tmp;
+                        }
+                    });
+                delayInputField.gameObject.SetActive(isDelayCommand);
+                commandLinePrefab.GetChild("CommandDelayLabel").SetActive(isDelayCommand);
+            }
+
+            if (isRepeatCommand)
+            {
+                var placeholder = new GameObject();
+                placeholder.name = "RepeatCommandPlaceholder";
+                placeholder.transform.SetParent(commandLinePrefab.transform.parent, false);
+                placeholder.transform.SetSiblingIndex(bc.gotoIndex);
+                var rt = placeholder.AddComponent<RectTransform>();
+                rt.pivot = Vector2.zero;
+
+                var placeholderBG = placeholder.AddComponent<Image>();
+                placeholderBG.sprite = UIAssetsLoader.spriteAssets.Find(i => i.name == "IRWindowButtonYellow");
+                placeholderBG.type = Image.Type.Sliced;
+                placeholderBG.fillCenter = true;
+
+                var le = placeholder.AddComponent<LayoutElement>();
+                le.preferredHeight = 6;
+                le.flexibleWidth = 1;
+
+                var gotoIndexInputField = commandLinePrefab.GetChild("CommandGotoIndexInputField").GetComponent<InputField>();
+                gotoIndexInputField.text = string.Format("{0:#0}", bc.gotoIndex);
+                gotoIndexInputField.onEndEdit.AddListener(v =>
+                    {
+                        int tmp;
+                        if (int.TryParse(v, out tmp))
+                        {
+                            bc.gotoIndex = tmp;
+                        }
+
+                        if(placeholder)
+                            placeholder.transform.SetSiblingIndex(bc.gotoIndex);
+                    });
+
+                var repeatInputField = commandLinePrefab.GetChild("CommandRepeatInputField").GetComponent<InputField>();
+                repeatInputField.text = string.Format("{0:#0}", bc.gotoCommandCounter);
+                repeatInputField.onEndEdit.AddListener(v =>
+                    {
+                        int tmp;
+                        if (int.TryParse(v, out tmp))
+                        {
+                            bc.gotoCommandCounter = tmp;
+                        }
+                    });
+
+                gotoIndexInputField.gameObject.SetActive(isRepeatCommand);
+                commandLinePrefab.GetChild("CommandRepeatLabel").SetActive(isRepeatCommand);
+                repeatInputField.gameObject.SetActive(isRepeatCommand);
+                commandLinePrefab.GetChild("CommandRepeatLabel2").SetActive(isRepeatCommand);
+
+
+            }
+
+            var commandDeleteButton = commandLinePrefab.GetChild("CommandDeleteButton").GetComponent<Button>();
+            commandDeleteButton.onClick.AddListener(() =>
                 {
                     openSequence.Pause();
-                    openSequence.Reset();
-                }
-            }
-
-            openSequence.isLooped = GUILayout.Toggle(openSequence.isLooped, "Looping", buttonStyle, GUILayout.Height(22));
-            
-            GUI.color = opaqueColor;
-            GUILayout.EndHorizontal();
-
-            GUILayout.EndVertical();
-
-            GUILayout.EndHorizontal();
-            GUILayout.EndVertical();
-
-            GUI.DragWindow();
+                    openSequence.commands.Remove(bc);
+                    openSequence.Reset(); 
+                    guiRebuildPending = true;
+                });
         }
 
-        private void SequencerCommandEditorWindow(int windowID)
+        public void RebuildUI()
         {
-
-            if (openSequence == null || selectedBasicCommand == null)
-                return;
-
-            var bc = selectedBasicCommand;
-
-            GUI.color = solidColor;
-            string tmpString;
-            float tmpValue;
-
-            GUILayout.BeginVertical();
-            GUILayout.BeginHorizontal();
-
-            if (bc.waitTime > 0f) 
+            if (_controlWindow)
             {
-                var tempDelay = bc.waitTime;
-                GUILayout.Label ("Delay for ", nameStyle, GUILayout.ExpandWidth (true), GUILayout.Height (22));
-                tmpString = GUILayout.TextField (string.Format ("{0:#0.0#}", tempDelay), textFieldStyle, GUILayout.Width (40), GUILayout.Height (22));
-                if (float.TryParse (tmpString, out tmpValue)) 
-                {
-                    tempDelay = Mathf.Clamp (tmpValue, 0.001f, 600f);
-                    bc.waitTime = tempDelay;
-                }
-                GUILayout.Label ("s ", nameStyle, GUILayout.Width (18), GUILayout.Height (22));
-
+                SequencerWindowPosition = _controlWindow.transform.position;
+                _controlWindow.DestroyGameObjectImmediate();
+                _controlWindow = null;
             }
 
-            if(bc.gotoIndex != -1)
+            if (_editorWindow)
             {
-                var tempGotoCounter = bc.gotoCounter;
-                var tempGotoIndex = bc.gotoIndex;
-                var tempGotoIndexString = (tempGotoIndex+1).ToString ();
-
-                GUILayout.BeginVertical();
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("Go To Command #", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-                if (GUILayout.Button ("-", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
-                {
-                    tempGotoIndex = Math.Max (tempGotoIndex - 1, 0);
-                    bc.gotoIndex = tempGotoIndex;
-                    tempGotoIndexString = (tempGotoIndex+1).ToString ();
-                }
-                tempGotoIndexString = GUILayout.TextField(string.Format("{0:#0}", tempGotoIndexString), textFieldStyle, GUILayout.Width(25), GUILayout.Height(22));
-
-                if (float.TryParse(tempGotoIndexString, out tmpValue))
-                {
-                    tempGotoIndex = (int)Mathf.Clamp(tmpValue-1, 0f, openSequence.commands.Count-1);
-                    bc.gotoIndex = tempGotoIndex;
-                }
-
-                if (GUILayout.Button ("+", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
-                {
-                    tempGotoIndex = Math.Max (Math.Min (tempGotoIndex + 1, openSequence.commands.Count-1), 0);
-                    bc.gotoIndex = tempGotoIndex;
-                    tempGotoIndexString = (tempGotoIndex+1).ToString ();
-                }
-                GUILayout.EndHorizontal();
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("Repeat (-1 for loop)", nameStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22));
-                if (GUILayout.Button ("-", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
-                {
-                    tempGotoCounter = Math.Max (tempGotoCounter - 1, -1);
-                    bc.gotoCounter = tempGotoCounter;
-                    bc.gotoCommandCounter = tempGotoCounter;
-                }
-
-                tmpString = GUILayout.TextField(string.Format("{0:#0}", tempGotoCounter), textFieldStyle, GUILayout.Width(25), GUILayout.Height(22));
-                if (float.TryParse(tmpString, out tmpValue))
-                {
-                    tempGotoCounter = (int)Math.Max(tmpValue, -1);
-                    bc.gotoCounter = tempGotoCounter;
-                    bc.gotoCommandCounter = tempGotoCounter;
-                }
-                if (GUILayout.Button ("+", buttonStyle, GUILayout.Width (18), GUILayout.Height (22))) 
-                {
-                    tempGotoCounter = Math.Max (tempGotoCounter + 1, -1);
-                    bc.gotoCounter = tempGotoCounter;
-                    bc.gotoCommandCounter = tempGotoCounter;
-                }
-                GUILayout.EndHorizontal();
-                GUILayout.EndVertical();
+                SequencerEditorWindowPosition = _editorWindow.transform.position;
+                SequencerEditorWindowSize = _editorWindow.GetComponent<RectTransform>().sizeDelta;
+                _editorWindow.DestroyGameObjectImmediate();
+                _editorWindow = null;
             }
 
-            if(bc.servo != null)
+            if (_settingsWindow)
+                SequencerSettingsWindowPosition = _settingsWindow.transform.position;
+            //should be called by ServoController when required (Vessel changed and such).
+
+            if (_stateUIControls == null)
+                _stateUIControls = new Dictionary<SequencerState, GameObject>();
+            else
+                _stateUIControls.Clear();
+
+            if (_sequenceUIControls == null)
+                _sequenceUIControls = new Dictionary<Sequence, GameObject>();
+            else
+                _sequenceUIControls.Clear();
+
+            if (UIAssetsLoader.allPrefabsReady && _settingsWindow == null)
             {
-
-                GUILayout.Label (bc.servo.Name, nameStyle, GUILayout.ExpandWidth (true), GUILayout.Height (22));
-
-                Rect last = GUILayoutUtility.GetLastRect();
-                Vector2 pos = Event.current.mousePosition;
-                bool highlight = last.Contains(pos);
-                bc.servo.Highlight = highlight;
-
-                var e = Event.current;
-                if (e.isMouse && e.clickCount == 2 && last.Contains(e.mousePosition))
-                {
-                    bc.position = bc.servo.Position;
-                }
-
-                string focusedControlName = GUI.GetNameOfFocusedControl ();
-                string thisControlName = "SequencerPositionCommand " + bc.servo.UID;
-
-                tmpString = DrawTextField (thisControlName, bc.position, "{0:#0.0#}", 
-                    textFieldStyle, GUILayout.Width (40), GUILayout.Height (22));
-
-                var valueChanged = (thisControlName == focusedControlName && 
-                    (Event.current.keyCode == KeyCode.Return || Event.current.keyCode == KeyCode.KeypadEnter));
-
-                if (float.TryParse (tmpString, out tmpValue) && valueChanged) 
-                {
-                    bc.position = Mathf.Clamp(tmpValue, bc.servo.MinPosition, bc.servo.MaxPosition);
-                    lastFocusedTextFieldValue = "";
-                }
-
-                GUILayout.Label ("@", nameStyle, GUILayout.Height (22));
-
-                thisControlName = "SequencerSpeedCommand " + bc.servo.UID;
-
-                tmpString = DrawTextField (thisControlName, bc.speedMultiplier, "{0:#0.0#}", 
-                    textFieldStyle, GUILayout.Width (30), GUILayout.Height (22));
-
-                valueChanged = (thisControlName == focusedControlName && 
-                    (Event.current.keyCode == KeyCode.Return || Event.current.keyCode == KeyCode.KeypadEnter));
-
-                if (float.TryParse (tmpString, out tmpValue) && valueChanged)
-                {
-                    bc.speedMultiplier = Mathf.Clamp (tmpValue, 0.05f, 1000f);
-                    lastFocusedTextFieldValue = "";
-                }
-
+                InitSettingsWindow();
             }
 
-            if (GUILayout.Button("Done", buttonStyle, GUILayout.Width(40), GUILayout.Height(22)))
+            //here we need to wait until prefabs become available and then Instatiate the window
+            if (UIAssetsLoader.allPrefabsReady && _controlWindow == null)
             {
-                openSequence.commands [selectedBasicCommandIndex]= bc;
-                guiCommandEditor = false;
+                InitControlWindow(GUIEnabled);
             }
 
-            GUI.color = opaqueColor;
-            GUILayout.EndHorizontal ();
-            GUILayout.EndVertical();
+            if (_controlWindow)
+            {
+                var sequencersArea = _controlWindow.GetChild("WindowContent");
+                for (int i = 0; i < sequencers.Count; i++)
+                {
+                    var sequencerLine = GameObject.Instantiate(UIAssetsLoader.sequencerLinePrefab);
+                    sequencerLine.transform.SetParent(sequencersArea.transform, false);
 
-            GUI.DragWindow();
+                    InitSequencerLinePrefab(sequencerLine, sequencers[i]);
+                }
+            }
+
+            if (UIAssetsLoader.allPrefabsReady && _editorWindow == null && openSequence != null)
+            {
+                InitEditorWindow(GUIEnabled);
+            }
+
+            //we don't need to set global alpha as all the windows will be faded it to the setting
+            SetGlobalScale(_UIScaleValue);
+            guiRebuildPending = false;
 
         }
 
-        private void SequencerStateSelectWindow(int windowID)
+        private void CloseAllWindows()
         {
+            CloseEditorWindow();
 
-            if (selectedState == null || selectedSequence == null || sequencers == null)
-                return;
-            
-            var module = sequencers.Find (s => s.states.Contains (selectedState));
-            if (module == null)
-            {
-                Logger.Log ("[GUI] Cannot find module for State " + selectedState.stateName, Logger.Level.Debug);
-                return;
-            }
-                
-
-            GUI.color = solidColor;
-            GUILayout.BeginVertical();
-            for (int i=0; i<module.states.Count; i++)
-            {
-                if(GUILayout.Button("Select " + module.states[i].stateName, buttonStyle, GUILayout.ExpandWidth(true), GUILayout.Height(22)))
-                {
-                    selectedSequence.endState = module.states [i];
-                    selectedState = null;
-                    selectedSequence = null;
-
-                    guiStateSelector = false;
-                }
-            }
-
-
-            GUI.color = opaqueColor;
-            GUILayout.EndVertical();
-
-            GUI.DragWindow();
-
-        }
-
-        public void LoadConfigXml()
-        {
-            PluginConfiguration config = PluginConfiguration.CreateForType<SequencerGUI>();
-            config.load();
-            SequencerWindowPos = config.GetValue<Rect>("SequencerWindowPos");
-            SequencerEditorWindowPos = config.GetValue<Rect>("SequencerEditorWindowPos");
-        }
-
-        public void SaveConfigXml()
-        {
-            PluginConfiguration config = PluginConfiguration.CreateForType<SequencerGUI>();
-            config.SetValue("SequencerWindowPos", SequencerWindowPos);
-            config.SetValue("SequencerEditorWindowPos", SequencerEditorWindowPos);
-            config.save();
-        }
-
-        private void ProcessFocusChange()
-        {
-            var temp = lastFocusedControlName.Split (' ');
-            Logger.Log ("[GUI] Focus change, lastName = " + lastFocusedControlName 
-                + ", lastValue = " + lastFocusedTextFieldValue 
-                + ", temp.Length = " + temp.Length, Logger.Level.Debug);
-
-            var servoFields = new string[4] {"SequencerPosition", "SequencerSpeed", "SequencerPositionCommand", "SequencerSpeedCommand"};
-
-            var pos = Array.IndexOf (servoFields, temp [0]);
-
-            Logger.Log ("availableServoCommands found: " + (availableServoCommands != null), Logger.Level.Debug);
-            Logger.Log ("pos: " + pos, Logger.Level.Debug);
-
-            if (temp.Length == 2 && pos >= 0 && pos < 4)
-            {
-                uint servoUID = 0;
-                if(uint.TryParse(temp[1], out servoUID) && availableServoCommands != null)
-                {
-                    float tmpValue;
-                    BasicCommand command;
-                    if (guiCommandEditor && selectedBasicCommand != null)
+            if (_controlWindowFader)
+                _controlWindowFader.FadeTo(0f, 0.1f, () =>
                     {
-                        command = selectedBasicCommand;
-                    }
-                    else
-                    {
-                        command = availableServoCommands.Find (p => p.servo.UID == servoUID);
-                    }
-                    
-                    Logger.Log ("Command found: " + (command != null), Logger.Level.Debug);
+                        GUIEnabled = false;
+                        appLauncherButton.SetFalse(false);
+                        SequencerWindowPosition = _controlWindow.transform.position;
+                        _controlWindow.DestroyGameObjectImmediate();
+                        _controlWindow = null;
+                        _controlWindowFader = null;
+                    });
 
-                    if (float.TryParse (lastFocusedTextFieldValue, out tmpValue)) 
-                    {
-                        if ((pos == 0 || pos == 2) && command != null && command.servo != null)
-                        {
-                            command.position = Mathf.Clamp(tmpValue, command.servo.MinPosition, command.servo.MaxPosition);
-                        }
-                        else if ((pos == 1 || pos == 3) && command != null && command.servo != null)
-                        {
-                            command.speedMultiplier = Mathf.Clamp(tmpValue, 0.05f, 1000f);
-                        }
-                    }
-
-                }
+            if (_settingsWindow && _settingsWindow.activeSelf)
+            {
+                SequencerSettingsWindowPosition = _settingsWindow.transform.position;
+                _settingsWindowFader.FadeTo(0f, 0.1f);
+                _settingsWindow.SetActive(false);
             }
-
-            lastFocusedControlName = GUI.GetNameOfFocusedControl();
-            lastFocusedTextFieldValue = "";
+            EditorLocker.EditorLock(false);
         }
 
-        private void OnGUI()
+        private void CloseEditorWindow()
         {
-            //requires ServoGroups to be parsed
-            if (!IRWrapper.APIReady)
+            if (_editorWindowFader)
             {
-                if (appLauncherButton != null)
-                {
-                    appLauncherButton.VisibleInScenes = ApplicationLauncher.AppScenes.NEVER;
-                }
-                return;
-            }
+                _editorWindowFader.FadeTo(0f, 0.1f, () =>
+                    {
+                        SequencerEditorWindowPosition = _editorWindow.transform.position;
+                        SequencerEditorWindowSize = _editorWindow.GetComponent<RectTransform>().sizeDelta;
 
-            if (appLauncherButton != null)
-            {
-                appLauncherButton.VisibleInScenes = ApplicationLauncher.AppScenes.FLIGHT | ApplicationLauncher.AppScenes.SPH | ApplicationLauncher.AppScenes.VAB;
-            }
+                        openSequence = null;
+                        _editorWindow.DestroyGameObjectImmediate();
+                        _editorWindow = null;
+                        _editorWindowFader = null;
+                    });
 
-            if (HighLogic.LoadedSceneIsFlight)
-            {
-                if (FlightGlobals.ActiveVessel == null)
+                if (!_controlWindow)
                     return;
                 
-                var storage = FlightGlobals.ActiveVessel.FindPartModulesImplementing<ModuleSequencer>();
-                if (GUIEnabled && (storage == null || storage.Count == 0))
+                var toggles = _controlWindow.GetComponentsInChildren<Toggle>(true);
+                for(int i=0; i<toggles.Length; i++)
                 {
-                    ScreenMessages.PostScreenMessage("Sequencer module is required (add probe core).", 3, ScreenMessageStyle.UPPER_CENTER);
-                    GUIEnabled = false;
-                    return;
-                }
-            }
-            else if (HighLogic.LoadedSceneIsEditor)
-            {
-                if (EditorLogic.fetch != null) 
-                {
-                    var s = EditorLogic.fetch.ship;
-                    if (s != null)
+                    if(toggles[i].name == "SequenceEditModeToggle")
                     {
-                        var storagePart = s.Parts.Find (p => p.FindModuleImplementing<ModuleSequencer> () != null);
-                        if (GUIEnabled && storagePart == null) 
-                        {
-                            ScreenMessages.PostScreenMessage("Sequencer module is required (add probe core).", 3, ScreenMessageStyle.UPPER_CENTER);
-                            GUIEnabled = false;
-                            return;
-                        }
+                        toggles[i].isOn = false;
                     }
                 }
+
             }
-
-            if (SequencerWindowPos.x == 0 && SequencerWindowPos.y == 0)
-            {
-                SequencerWindowPos = new Rect(Screen.width - 510, 70, 10, 10);
-            }
-
-            if (SequencerEditorWindowPos.x == 0 && SequencerEditorWindowPos.y == 0)
-            {
-                SequencerEditorWindowPos = new Rect(Screen.width - 510, 300, 10, 10);
-            }
-
-            if (SequencerCommandEditorWindowPos.x == 0 && SequencerCommandEditorWindowPos.y == 0)
-            {
-                SequencerCommandEditorWindowPos = new Rect(Input.mousePosition.x - 100, Screen.height - Input.mousePosition.y + 17, 10, 10);
-            }
-
-            if (SequencerStateSelectorWindowPos.x == 0 && SequencerStateSelectorWindowPos.y == 0)
-            {
-                SequencerStateSelectorWindowPos = new Rect(Input.mousePosition.x - 100, Screen.height - Input.mousePosition.y + 17, 10, 10);
-            }
-
-            GUI.skin = DefaultSkinProvider.DefaultSkin;
-            GUI.color = opaqueColor;
-
-            if (!GUISetupDone)
-                InitGUI();
-            
-            if (GUIEnabled && !guiHidden)
-            {
-                if (lastFocusedControlName != GUI.GetNameOfFocusedControl())
-                {
-                    ProcessFocusChange ();
-                }
-
-                //this code defocuses the TexFields if you click mouse elsewhere
-                if (GUIUtility.hotControl > 0 && GUIUtility.hotControl != GUIUtility.keyboardControl)
-                {
-                    GUIUtility.keyboardControl = 0;
-                }
-
-                SequencerWindowPos = GUILayout.Window(SequencerWindowID, SequencerWindowPos,
-                SequencerControlWindow,
-                "Servo Sequencer",
-                GUILayout.Width(300),
-                GUILayout.Height(80));
-
-                if (guiSequenceEditor)
-                {
-                    float height = Screen.height / 2f;
-                    string windowTitle = "Sequence Editor: " + openSequence.name;
-
-                    if (openSequence.isLocked)
-                        windowTitle += " (locked)";
-
-                    if(openSequence != null)
-                        SequencerEditorWindowPos = GUILayout.Window(SequencerEditorWindowID, SequencerEditorWindowPos,
-                        SequencerEditorWindow,
-                        windowTitle,
-                        GUILayout.Width(640),
-                        GUILayout.Height(height));
-                }
-                if(guiCommandEditor && selectedBasicCommand != null)
-                {
-                    string windowTitle = "Command Editor: " + openSequence.name + " [" + selectedBasicCommandIndex.ToString() + "]";
-
-                    if(selectedBasicCommand != null)
-                        SequencerCommandEditorWindowPos = GUILayout.Window(SequencerCommandEditorWindowID, SequencerCommandEditorWindowPos,
-                            SequencerCommandEditorWindow,
-                            windowTitle,
-                            GUILayout.Width(250),
-                            GUILayout.Height(50));
-                }
-
-                if(guiStateSelector && selectedState != null && selectedSequence != null)
-                {
-                    string windowTitle = "Select End State for " + selectedSequence.name;
-
-                    SequencerStateSelectorWindowPos = GUILayout.Window(SequencerStateSelectorWindowID, SequencerStateSelectorWindowPos,
-                            SequencerStateSelectWindow,
-                            windowTitle,
-                            GUILayout.Width(100),
-                            GUILayout.Height(50));
-                }
-            }
-            GUI.color = solidColor;
-            DrawTooltip();
-
-            if(HighLogic.LoadedSceneIsEditor)
-            {
-                var mousePos = new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y);
-                bool lockEditor = GUIEnabled && (SequencerWindowPos.Contains(mousePos) || 
-                                                (guiSequenceEditor && SequencerEditorWindowPos.Contains(mousePos)) ||
-                                                (guiCommandEditor && SequencerCommandEditorWindowPos.Contains(mousePos))
-                );
-
-                EditorLock(lockEditor);
-            }
+                
         }
 
-        /// <summary>
-        ///     Applies or removes the lock
-        /// </summary>
-        /// <param name="apply">Which way are we going</param>
-        internal void EditorLock(Boolean apply)
+        internal void KeyboardLock(Boolean apply)
         {
             //only do this lock in the editor - no point elsewhere
-            if (HighLogic.LoadedSceneIsEditor && apply)
+            if (apply)
             {
                 //only add a new lock if there isnt already one there
-                if (InputLockManager.GetControlLock("IRSGUILockOfEditor") != ControlTypes.EDITOR_LOCK)
+                if (InputLockManager.GetControlLock("IRKeyboardLock") != ControlTypes.KEYBOARDINPUT)
                 {
-                    Logger.Log(String.Format("[GUI] AddingLock-{0}", "IRSGUILockOfEditor"), Logger.Level.Debug);
+                    Logger.Log(String.Format("[GUI] AddingLock-{0}", "IRKeyboardLock"), Logger.Level.Debug);
 
-                    InputLockManager.SetControlLock(ControlTypes.EDITOR_LOCK, "IRSGUILockOfEditor");
+                    InputLockManager.SetControlLock(ControlTypes.KEYBOARDINPUT, "IRKeyboardLock");
                 }
             }
             //Otherwise make sure the lock is removed
             else
             {
                 //Only try and remove it if there was one there in the first place
-                if (InputLockManager.GetControlLock("IRSGUILockOfEditor") == ControlTypes.EDITOR_LOCK)
+                if (InputLockManager.GetControlLock("IRKeyboardLock") == ControlTypes.KEYBOARDINPUT)
                 {
-                    Logger.Log(String.Format("[GUI] Removing-{0}", "IRSGUILockOfEditor"), Logger.Level.Debug);
-                    InputLockManager.RemoveControlLock("IRSGUILockOfEditor");
+                    Logger.Log(String.Format("[GUI] Removing-{0}", "IRKeyboardLock"), Logger.Level.Debug);
+                    InputLockManager.RemoveControlLock("IRKeyboardLock");
                 }
             }
+
+            isKeyboardLocked = apply;
         }
+
+        public void LoadConfigXml()
+        {
+            PluginConfiguration config = PluginConfiguration.CreateForType<SequencerGUI>();
+            config.load();
+
+            SequencerWindowPosition = config.GetValue<Vector3>("SequencerWindowPosition");
+            SequencerEditorWindowPosition = config.GetValue<Vector3>("SequencerEditorWindowPosition");
+            SequencerEditorWindowSize = config.GetValue<Vector2>("SequencerEditorWindowSize");
+            SequencerSettingsWindowPosition = config.GetValue<Vector3>("SequencerSettingsWindowPosition");
+
+            _UIAlphaValue = (float)config.GetValue<double>("UIAlphaValue", 0.8);
+            _UIScaleValue = (float)config.GetValue<double>("UIScaleValue", 1.0);
+            
+        }
+
+        public void SaveConfigXml()
+        {
+            if (_controlWindow)
+                SequencerWindowPosition = _controlWindow.transform.position;
+
+            if (_editorWindow)
+            {
+                SequencerEditorWindowPosition = _editorWindow.transform.position;
+                SequencerEditorWindowSize = _editorWindow.GetComponent<RectTransform>().sizeDelta;
+            }
+            if (_settingsWindow)
+            {
+                SequencerSettingsWindowPosition = _settingsWindow.transform.position;
+            }
+
+            PluginConfiguration config = PluginConfiguration.CreateForType<SequencerGUI>();
+            config.SetValue("controlWindowPosition", SequencerWindowPosition);
+            config.SetValue("editorWindowPosition", SequencerEditorWindowPosition);
+            config.SetValue("editorWindowSize", SequencerEditorWindowSize);
+            config.SetValue("uiSettingsWindowPosition", SequencerSettingsWindowPosition);
+            config.SetValue("UIAlphaValue", (double)_UIAlphaValue);
+            config.SetValue("UIScaleValue", (double)_UIScaleValue);
+            
+            config.save();
+        }
+
+        
+        
     }
 
     
