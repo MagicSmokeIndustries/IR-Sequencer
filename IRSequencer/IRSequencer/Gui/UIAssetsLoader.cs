@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace IRSequencer.Gui
 {
-    [KSPAddon(KSPAddon.Startup.Instantly, true)]
+    [KSPAddon(KSPAddon.Startup.SpaceCentre, true)]
     public class UIAssetsLoader : MonoBehaviour
     {
         private AssetBundle IRAssetBundle;
@@ -29,7 +29,7 @@ namespace IRSequencer.Gui
         internal static List<UnityEngine.Sprite> spriteAssets;
         
         public static bool allPrefabsReady = false;
-        
+
         public IEnumerator LoadBundle(string location)
         {
             while (!Caching.ready)
@@ -132,9 +132,9 @@ namespace IRSequencer.Gui
         public void LoadBundleFromDisk(string path)
         {
             IRAssetBundle = AssetBundle.CreateFromFile(path);
-
+            
             LoadBundleAssets();
-
+            
             //had to move bundle unloading further down in time due to unexplained and unreproducable on my PC issues for some users
         }
 
@@ -153,9 +153,11 @@ namespace IRSequencer.Gui
             //StartCoroutine(LoadBundle(bundlePath + "ir_ui_objects.ksp"));
 
             Logger.Log("Loading bundles from filePath: " + filePath, Logger.Level.Debug);
-            LoadBundleFromDisk(filePath + "ir_ui_objects.ksp");
-        }
+            if(!IRAssetBundle)
+                LoadBundleFromDisk(filePath + "ir_ui_objects.ksp");
 
+        }
+        
         public void OnDestroy()
         {
             Logger.Log("Unloading bundle", Logger.Level.Debug);
