@@ -41,7 +41,7 @@ namespace IRSequencer.Gui
 
                 LoadBundleAssets();
 
-                IRAssetBundle.Unload(false);
+                //IRAssetBundle.Unload(false);
             }
         }
         
