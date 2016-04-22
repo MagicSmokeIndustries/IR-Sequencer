@@ -140,7 +140,8 @@ namespace IRSequencer.Gui
             //need to clean cache
             Caching.CleanCache();
 
-            StartCoroutine(LoadBundle(bundlePath + "ir_ui_objects.ksp"));
+            if(!allPrefabsReady)
+                StartCoroutine(LoadBundle(bundlePath + "ir_ui_objects.ksp"));
 
             var IRAssetsLoaderType = AssemblyLoader.loadedAssemblies
                 .Select(a => a.assembly.GetExportedTypes())
