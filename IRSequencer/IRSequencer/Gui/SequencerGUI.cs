@@ -1759,13 +1759,19 @@ namespace IRSequencer.Gui
             else
                 _sequenceUIControls.Clear();
 
-            if (UIAssetsLoader.allPrefabsReady && _settingsWindow == null)
+            if (!UIAssetsLoader.allPrefabsReady)
+            {
+                GUIEnabled = false;
+                return;
+            }
+
+            if (_settingsWindow == null)
             {
                 InitSettingsWindow();
             }
 
             //here we need to wait until prefabs become available and then Instatiate the window
-            if (UIAssetsLoader.allPrefabsReady && _controlWindow == null)
+            if (_controlWindow == null)
             {
                 InitControlWindow(GUIEnabled);
             }
