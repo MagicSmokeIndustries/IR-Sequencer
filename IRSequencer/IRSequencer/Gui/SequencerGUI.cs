@@ -58,7 +58,9 @@ namespace IRSequencer.Gui
 
         public bool GUIEnabled = false;
         public bool guiControlWindowEditMode = false;
-        
+
+        public bool alwaysStartInEditMode = false;
+
         private bool isReady = false;
         private bool firstUpdate = true;
 
@@ -537,6 +539,8 @@ namespace IRSequencer.Gui
         {
             LoadConfigXml();
 
+            guiControlWindowEditMode = alwaysStartInEditMode;
+
             GameEvents.onShowUI.Add(OnShowUI);
             GameEvents.onHideUI.Add(OnHideUI);
 
@@ -665,6 +669,16 @@ namespace IRSequencer.Gui
 
             _settingsWindow.GetComponent<CanvasGroup>().alpha = 0f;
 
+            if (SequencerSettingsWindowPosition == Vector3.zero)
+            {
+                //get the default position from the prefab
+                SequencerSettingsWindowPosition = _settingsWindow.transform.position;
+            }
+            else
+            {
+                _settingsWindow.transform.position = SequencerSettingsWindowPosition;
+            }
+
             var closeButton = _settingsWindow.GetChild("WindowTitle").GetChild("RightWindowButton");
             if (closeButton != null)
             {
@@ -704,7 +718,12 @@ namespace IRSequencer.Gui
                         scaleText.text = string.Format("{0:#0.00}", v);
                     });
             }
-            
+
+            var startEditModeToggle = _settingsWindow.GetChild ("WindowContent").GetChild ("StartEditModeHLG").GetChild ("StartEditModeToggle").GetComponent<Toggle> ();
+            startEditModeToggle.isOn = alwaysStartInEditMode;
+            startEditModeToggle.onValueChanged.AddListener (v => alwaysStartInEditMode = v);
+
+
             var footerButtons = _settingsWindow.GetChild("WindowFooter").GetChild("WindowFooterButtonsHLG");
 
             var cancelButton = footerButtons.GetChild("CancelButton").GetComponent<Button>();
@@ -1890,6 +1909,7 @@ namespace IRSequencer.Gui
             SequencerEditorWindowPosition = config.GetValue<Vector3>("SequencerEditorWindowPosition");
             SequencerEditorWindowSize = config.GetValue<Vector2>("SequencerEditorWindowSize");
             SequencerSettingsWindowPosition = config.GetValue<Vector3>("SequencerSettingsWindowPosition");
+            alwaysStartInEditMode = config.GetValue<bool>("alwaysStartInEditMode");
 
             _UIAlphaValue = (float)config.GetValue<double>("UIAlphaValue", 0.8);
             _UIScaleValue = (float)config.GetValue<double>("UIScaleValue", 1.0);
@@ -1912,13 +1932,13 @@ namespace IRSequencer.Gui
             }
 
             PluginConfiguration config = PluginConfiguration.CreateForType<SequencerGUI>();
-            config.SetValue("controlWindowPosition", SequencerWindowPosition);
-            config.SetValue("editorWindowPosition", SequencerEditorWindowPosition);
-            config.SetValue("editorWindowSize", SequencerEditorWindowSize);
-            config.SetValue("uiSettingsWindowPosition", SequencerSettingsWindowPosition);
+            config.SetValue("SequencerWindowPosition", SequencerWindowPosition);
+            config.SetValue("SequencerEditorWindowPosition", SequencerEditorWindowPosition);
+            config.SetValue("SequencerEditorWindowSize", SequencerEditorWindowSize);
+            config.SetValue("SequencerSettingsWindowPosition", SequencerSettingsWindowPosition);
             config.SetValue("UIAlphaValue", (double)_UIAlphaValue);
             config.SetValue("UIScaleValue", (double)_UIScaleValue);
-            
+            config.SetValue("alwaysStartInEditMode", (bool)alwaysStartInEditMode);
             config.save();
         }
 
