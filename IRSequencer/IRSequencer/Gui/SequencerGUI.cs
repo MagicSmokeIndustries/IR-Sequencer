@@ -1210,7 +1210,7 @@ namespace IRSequencer.Gui
             
             var resizeHandler = editorFooterButtons.GetChild("ResizeHandle").AddComponent<PanelResizer>();
             resizeHandler.rectTransform = _editorWindow.transform as RectTransform;
-            resizeHandler.minSize = new Vector2(450, 365);
+            resizeHandler.minSize = new Vector2(470, 365);
             resizeHandler.maxSize = new Vector2(2000, 1600);
 
             var leftPane = _editorWindow.GetChild("WindowContent").GetChild("Panes").GetChild("LeftPane").GetChild("CommandZone");
