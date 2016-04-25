@@ -175,6 +175,29 @@ namespace IRSequencer.Gui
             }
         }
 
+        public static Vector3 ClampWindowPosition(Vector3 windowPosition)
+        {
+            Canvas canvas = UIMasterController.Instance.appCanvas;
+            RectTransform canvasRectTransform = canvas.transform as RectTransform;
+
+            var windowPositionOnScreen = RectTransformUtility.WorldToScreenPoint(UIMasterController.Instance.uiCamera, windowPosition);
+
+            float clampedX = Mathf.Clamp(windowPositionOnScreen.x, 0, Screen.width);
+            float clampedY = Mathf.Clamp(windowPositionOnScreen.y, 0, Screen.height);
+
+            windowPositionOnScreen = new Vector2(clampedX, clampedY);
+
+            Vector3 newWindowPosition;
+            if (RectTransformUtility.ScreenPointToWorldPointInRectangle(canvasRectTransform, 
+                windowPositionOnScreen, UIMasterController.Instance.uiCamera, out newWindowPosition))
+            {
+                return newWindowPosition;
+            }
+            else
+                return Vector3.zero;
+        }
+
+
         public void Update()
         {
             if (firstUpdate)
@@ -676,7 +699,7 @@ namespace IRSequencer.Gui
             }
             else
             {
-                _settingsWindow.transform.position = SequencerSettingsWindowPosition;
+                _settingsWindow.transform.position = ClampWindowPosition(SequencerSettingsWindowPosition);
             }
 
             var closeButton = _settingsWindow.GetChild("WindowTitle").GetChild("RightWindowButton");
@@ -811,13 +834,9 @@ namespace IRSequencer.Gui
         public void ToggleSettingsWindow()
         {
             if (_settingsWindow == null || _settingsWindowFader == null)
-                return;
+                InitSettingsWindow();
 
-            //lets simplify things
-            if (_settingsWindowFader.IsFading)
-                return;
-
-            if (_settingsWindow.activeInHierarchy)
+            if (_settingsWindow.activeSelf)
             {
                 //fade the window out and deactivate
                 _settingsWindowFader.FadeTo(0, UI_FADE_TIME, () => _settingsWindow.SetActive(false));
@@ -850,7 +869,7 @@ namespace IRSequencer.Gui
             }
             else
             {
-                _controlWindow.transform.position = SequencerWindowPosition;
+                _controlWindow.transform.position = ClampWindowPosition(SequencerWindowPosition);
             }
 
             var settingsButton = _controlWindow.GetChild("WindowTitle").GetChild("LeftWindowButton");
@@ -1175,7 +1194,7 @@ namespace IRSequencer.Gui
             }
             else
             {
-                _editorWindow.transform.position = SequencerEditorWindowPosition;
+                _editorWindow.transform.position = ClampWindowPosition(SequencerEditorWindowPosition);
             }
 
             if (SequencerEditorWindowSize == Vector2.zero)
@@ -1833,11 +1852,15 @@ namespace IRSequencer.Gui
                         _controlWindowFader = null;
                     });
 
-            if (_settingsWindow && _settingsWindow.activeSelf)
+            if (_settingsWindow)
             {
                 SequencerSettingsWindowPosition = _settingsWindow.transform.position;
-                _settingsWindowFader.FadeTo(0f, 0.1f);
-                _settingsWindow.SetActive(false);
+                _settingsWindowFader.FadeTo(0f, 0.1f, () => {
+                    _settingsWindow.DestroyGameObjectImmediate();
+                    _settingsWindow = null;
+                    _settingsWindowFader = null;
+                });
+
             }
             EditorLocker.EditorLock(false);
         }
