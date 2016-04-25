@@ -175,6 +175,29 @@ namespace IRSequencer.Gui
             }
         }
 
+        public static Vector3 ClampWindowPosition(Vector3 windowPosition)
+        {
+            Canvas canvas = UIMasterController.Instance.appCanvas;
+            RectTransform canvasRectTransform = canvas.transform as RectTransform;
+
+            var windowPositionOnScreen = RectTransformUtility.WorldToScreenPoint(UIMasterController.Instance.uiCamera, windowPosition);
+
+            float clampedX = Mathf.Clamp(windowPositionOnScreen.x, 0, Screen.width);
+            float clampedY = Mathf.Clamp(windowPositionOnScreen.y, 0, Screen.height);
+
+            windowPositionOnScreen = new Vector2(clampedX, clampedY);
+
+            Vector3 newWindowPosition;
+            if (RectTransformUtility.ScreenPointToWorldPointInRectangle(canvasRectTransform, 
+                windowPositionOnScreen, UIMasterController.Instance.uiCamera, out newWindowPosition))
+            {
+                return newWindowPosition;
+            }
+            else
+                return Vector3.zero;
+        }
+
+
         public void Update()
         {
             if (firstUpdate)
@@ -344,6 +367,9 @@ namespace IRSequencer.Gui
                             sequenceStartToggle.isOn = sq.isActive;
                             //sequenceStartToggle.onValueChanged.Invoke (sq.isActive);
                         }
+                        sequenceStartToggle.interactable = (sq.startState == module.currentState);
+
+                        sequenceUIControls.GetChild("SequenceStopButton").GetComponent<Button>().interactable = (sq.startState == module.currentState);
 
                         var sequenceLoopToggle = sequenceUIControls.GetChild("SequenceLoopToggle").GetComponent<Toggle>();
                         if (sq.isLooped != sequenceLoopToggle.isOn)
@@ -676,7 +702,7 @@ namespace IRSequencer.Gui
             }
             else
             {
-                _settingsWindow.transform.position = SequencerSettingsWindowPosition;
+                _settingsWindow.transform.position = ClampWindowPosition(SequencerSettingsWindowPosition);
             }
 
             var closeButton = _settingsWindow.GetChild("WindowTitle").GetChild("RightWindowButton");
@@ -734,7 +760,10 @@ namespace IRSequencer.Gui
 
                     scaleSlider.GetComponent<Slider>().value = _UIScaleValue;
                     scaleText.text = string.Format("{0:#0.00}", _UIScaleValue);
+
+                    closeButton.GetComponent<Button>().onClick.Invoke();
                 });
+            cancelButton.gameObject.AddComponent<BasicTooltip>().tooltipText = "Revert and close";
 
             var defaultButton = footerButtons.GetChild("DefaultButton").GetComponent<Button>();
             defaultButton.onClick.AddListener(() =>
@@ -751,6 +780,7 @@ namespace IRSequencer.Gui
                     SetGlobalAlpha(_UIAlphaValue);
                     SetGlobalScale(_UIScaleValue);
                 });
+            defaultButton.gameObject.AddComponent<BasicTooltip>().tooltipText = "Revert to default settings";
 
             var applyButton = footerButtons.GetChild("ApplyButton").GetComponent<Button>();
             applyButton.onClick.AddListener(() =>
@@ -761,6 +791,8 @@ namespace IRSequencer.Gui
                     SetGlobalAlpha(newAlphaValue);
                     SetGlobalScale(newScaleValue);
                 });
+            applyButton.gameObject.AddComponent<BasicTooltip>().tooltipText = "Apply settings";
+
             _settingsWindow.SetActive(false);
         }
 
@@ -811,13 +843,9 @@ namespace IRSequencer.Gui
         public void ToggleSettingsWindow()
         {
             if (_settingsWindow == null || _settingsWindowFader == null)
-                return;
+                InitSettingsWindow();
 
-            //lets simplify things
-            if (_settingsWindowFader.IsFading)
-                return;
-
-            if (_settingsWindow.activeInHierarchy)
+            if (_settingsWindow.activeSelf)
             {
                 //fade the window out and deactivate
                 _settingsWindowFader.FadeTo(0, UI_FADE_TIME, () => _settingsWindow.SetActive(false));
@@ -850,7 +878,7 @@ namespace IRSequencer.Gui
             }
             else
             {
-                _controlWindow.transform.position = SequencerWindowPosition;
+                _controlWindow.transform.position = ClampWindowPosition(SequencerWindowPosition);
             }
 
             var settingsButton = _controlWindow.GetChild("WindowTitle").GetChild("LeftWindowButton");
@@ -886,10 +914,12 @@ namespace IRSequencer.Gui
             var sequencerEditModeToggle = sequencerControls.GetChild("SequencerEditToggle").GetComponent<Toggle>();
             sequencerEditModeToggle.isOn = guiControlWindowEditMode;
             sequencerEditModeToggle.onValueChanged.AddListener(ToggleControlWindowEditMode);
+            sequencerEditModeToggle.gameObject.AddComponent<BasicTooltip>().tooltipText = "Toggle Edit Mode";
 
             var sequencerLockToggle = sequencerControls.GetChild("SequencerLockToggle").GetComponent<Toggle>();
             sequencerLockToggle.isOn = module.isLocked;
             sequencerLockToggle.onValueChanged.AddListener(v => module.isLocked = v);
+            sequencerLockToggle.gameObject.AddComponent<BasicTooltip>().tooltipText = "Lock/unlock this sequencer";
 
             var sequencerAddStateButton = sequencerControls.GetChild("AddStateButton").GetComponent<Button>();
             sequencerAddStateButton.onClick.AddListener(() =>
@@ -904,8 +934,6 @@ namespace IRSequencer.Gui
 
             var statesArea = sequencerLinePrefab.GetChild("SequencerStatesVLG");
             statesArea.AddComponent<StateDropHandler>();
-
-
 
             for (int i = 0; i < module.states.Count; i++)
             {
@@ -925,6 +953,8 @@ namespace IRSequencer.Gui
             var stateControls = stateLinePrefab.GetChild("SequencerStateControlsHLG");
 
             var stateDragHandleObject = stateControls.GetChild("SequencerStateStatusHandle");
+            stateDragHandleObject.AddComponent<BasicTooltip>().tooltipText = "Grab to reorder";
+
             var dragHandler = stateDragHandleObject.AddComponent<StateDragHandler>();
             dragHandler.mainCanvas = UIMasterController.Instance.appCanvas;
             dragHandler.background = UIAssetsLoader.spriteAssets.Find(a => a.name == "IRWindowGroupFrame_Drag");
@@ -955,6 +985,7 @@ namespace IRSequencer.Gui
 
                 });
             sequencerStateDeleteButton.gameObject.SetActive(guiControlWindowEditMode);
+            sequencerStateDeleteButton.gameObject.AddComponent<BasicTooltip>().tooltipText = "Delete the State.\nSequences will be reassigned to first state.";
 
             var stateAddSequenceButton = stateControls.GetChild("AddSequenceButton").GetComponent<Button>();
             stateAddSequenceButton.onClick.AddListener(() =>
@@ -991,6 +1022,8 @@ namespace IRSequencer.Gui
         private void InitSequenceLinePrefab(GameObject sequenceLinePrefab, Sequence s, ModuleSequencer module)
         {
             var sequenceStatusHandle = sequenceLinePrefab.GetChild("SequenceStatusRawImage").GetComponent<RawImage>();
+            sequenceStatusHandle.gameObject.AddComponent<BasicTooltip>().tooltipText = "Grab to reorder or re-assign.";
+
             var sequenceDragHandler = sequenceStatusHandle.gameObject.AddComponent<SequenceDragHandler>();
             sequenceDragHandler.mainCanvas = UIMasterController.Instance.appCanvas;
             sequenceDragHandler.background = UIAssetsLoader.spriteAssets.Find(a => a.name == "IRWindowServoFrame_Drag");
@@ -1020,7 +1053,7 @@ namespace IRSequencer.Gui
             endStateText.gameObject.SetActive(!guiControlWindowEditMode);
 
             var endStateDropdown = sequenceLinePrefab.GetChild("EndStateDropdown").GetComponent<Dropdown>();
-
+            
             var template = endStateDropdown.transform.FindChild("Template");
             var canvas = template.GetComponent<Canvas>();
             if (canvas == null)
@@ -1039,13 +1072,12 @@ namespace IRSequencer.Gui
                     }
                 });
             endStateDropdown.gameObject.SetActive(guiControlWindowEditMode);
-
-
+            
             var sequenceToggleKeyInputField = sequenceLinePrefab.GetChild("SequenceToggleKey").GetComponent<InputField>();
             sequenceToggleKeyInputField.text = s.keyShortcut;
             sequenceToggleKeyInputField.onEndEdit.AddListener(v => s.keyShortcut = v);
             sequenceToggleKeyInputField.gameObject.SetActive(true); //zodius wants it visible all the time
-
+            sequenceToggleKeyInputField.gameObject.AddComponent<BasicTooltip>().tooltipText = "Keyboard shortcut to\n start/stop the sequence.";
 
             var sequenceAutoStartToggle = sequenceLinePrefab.GetChild("SequenceAutoStartToggle").GetComponent<Toggle>();
             sequenceAutoStartToggle.isOn = s.autoStart;
@@ -1066,6 +1098,7 @@ namespace IRSequencer.Gui
                         s.Pause();
 
                 });
+            sequenceStartToggle.gameObject.AddComponent<BasicTooltip>().tooltipText = "Start/pause the sequence.";
 
             var sequenceStopButton = sequenceLinePrefab.GetChild("SequenceStopButton").GetComponent<Button>();
             sequenceStopButton.onClick.AddListener(() =>
@@ -1078,14 +1111,17 @@ namespace IRSequencer.Gui
                     if (openSequence != null && openSequence.sequenceID == s.sequenceID)
                         ResetOpenSequenceCommandProgress();
                 });
+            sequenceStopButton.gameObject.AddComponent<BasicTooltip>().tooltipText = "Stop and reset the sequence.";
 
             var sequenceLoopToggle = sequenceLinePrefab.GetChild("SequenceLoopToggle").GetComponent<Toggle>();
             sequenceLoopToggle.isOn = s.isLooped;
             sequenceLoopToggle.onValueChanged.AddListener(v => s.isLooped = v);
+            sequenceLoopToggle.gameObject.AddComponent<BasicTooltip>().tooltipText = "Loop the sequence";
 
             var sequenceEditModeToggle = sequenceLinePrefab.GetChild("SequenceEditModeToggle").GetComponent<Toggle>();
             sequenceEditModeToggle.isOn = (openSequence != null && openSequence.sequenceID == s.sequenceID);
             sequenceEditModeToggle.onValueChanged.AddListener(v => ToggleSequenceEditor(s, v, sequenceEditModeToggle));
+            sequenceEditModeToggle.gameObject.AddComponent<BasicTooltip>().tooltipText = "Open/close sequence editor.";
 
             var sequenceCloneButton = sequenceLinePrefab.GetChild("SequenceCloneButton").GetComponent<Button>();
             sequenceCloneButton.onClick.AddListener(() =>
@@ -1093,6 +1129,7 @@ namespace IRSequencer.Gui
                     module.sequences.Add(new Sequence(s));
                     guiRebuildPending = true;
                 });
+            sequenceCloneButton.gameObject.AddComponent<BasicTooltip>().tooltipText = "Create a copy (clone).";
 
             var sequenceDeleteButton = sequenceLinePrefab.GetChild("SequenceDeleteButton").GetComponent<Button>();
             sequenceDeleteButton.onClick.AddListener(() =>
@@ -1108,6 +1145,7 @@ namespace IRSequencer.Gui
 
                     guiRebuildPending = true;
                 });
+            sequenceDeleteButton.gameObject.AddComponent<BasicTooltip>().tooltipText = "Delete the sequence";
 
         }
 
@@ -1175,7 +1213,7 @@ namespace IRSequencer.Gui
             }
             else
             {
-                _editorWindow.transform.position = SequencerEditorWindowPosition;
+                _editorWindow.transform.position = ClampWindowPosition(SequencerEditorWindowPosition);
             }
 
             if (SequencerEditorWindowSize == Vector2.zero)
@@ -1215,7 +1253,9 @@ namespace IRSequencer.Gui
 
             var leftPane = _editorWindow.GetChild("WindowContent").GetChild("Panes").GetChild("LeftPane").GetChild("CommandZone");
             var moveServoTemplate = leftPane.GetChild("MoveZoneHLG");
+
             var moveServoDetails = moveServoTemplate.GetChild("MoveDetails").GetChild("ServoDataVLG");
+            moveServoDetails.AddComponent<BasicTooltip>().tooltipText = "Ctrl-Click any servo on your craft to select it\n or use the dropdown menus.";
 
             var moveToInputField = moveServoDetails.GetChild("MoveToHLG").GetChild("MoveToPositionInputField").GetComponent<InputField>();
             moveToInputField.text = string.Format("{0:#0.00}", moveToValue);
@@ -1301,7 +1341,7 @@ namespace IRSequencer.Gui
 
                     guiRebuildPending = true;
                 });
-
+            addMoveCommandButton.gameObject.AddComponent<BasicTooltip>().tooltipText = "Add a move servo command\n to the end of the list.\nYou can reorder commands\n via drag-n-drop.";
 
             var AGToggleZone = leftPane.GetChild("AGToggleZoneHLG");
             var AGToggleDropDown = AGToggleZone.GetChild("AGToggleDetails").GetChild("ActionGroupDropdown").GetComponent<Dropdown>();
@@ -1472,6 +1512,7 @@ namespace IRSequencer.Gui
                     if (!v && openSequence.isActive)
                         openSequence.Pause();
                 });
+            sequenceStartToggle.gameObject.AddComponent<BasicTooltip>().tooltipText = "Start/pause the sequence";
 
             var sequenceStopButton = footerButtonsZone.GetChild("SequenceStopButton").GetComponent<Button>();
             sequenceStopButton.onClick.AddListener(() =>
@@ -1480,16 +1521,19 @@ namespace IRSequencer.Gui
                     openSequence.Reset();
                     ResetOpenSequenceCommandProgress();
                 });
+            sequenceStopButton.gameObject.AddComponent<BasicTooltip>().tooltipText = "Stop and reset the sequence";
 
             var sequenceStepButton = footerButtonsZone.GetChild("SequenceStepButton").GetComponent<Button>();
             sequenceStepButton.onClick.AddListener(() =>
                 {
                     openSequence.Step();
                 });
+            sequenceStepButton.gameObject.AddComponent<BasicTooltip>().tooltipText = "Advance sequence by 1 command";
 
             var sequenceLoopToggle = footerButtonsZone.GetChild("SequenceLoopToggle").GetComponent<Toggle>();
             sequenceLoopToggle.isOn = openSequence.isLooped;
             sequenceLoopToggle.onValueChanged.AddListener(v => openSequence.isLooped = v);
+            sequenceLoopToggle.gameObject.AddComponent<BasicTooltip>().tooltipText = "Loop the sequence";
 
             if (_openSequenceCommandControls == null)
                 _openSequenceCommandControls = new Dictionary<BasicCommand, GameObject>();
@@ -1511,6 +1555,9 @@ namespace IRSequencer.Gui
 
                 _openSequenceCommandControls.Add(bc, commandLine);
             }
+
+            SetGlobalScale(_UIScaleValue);
+
         }
 
         private void InitCommandLine(GameObject commandLinePrefab, BasicCommand bc)
@@ -1551,6 +1598,8 @@ namespace IRSequencer.Gui
                     commandStatusRawImage.texture = UIAssetsLoader.iconAssets.Find(i => i.name == "IRWindowIndicator_Idle");
                 }
             }
+
+            commandDragHandle.AddComponent<BasicTooltip>().tooltipText = "Grab to reposition the command in the list.";
 
             var dragHandler = commandDragHandle.AddComponent<CommandDragHandler>();
             dragHandler.mainCanvas = UIMasterController.Instance.appCanvas;
@@ -1692,6 +1741,7 @@ namespace IRSequencer.Gui
                 placeholder.name = "RepeatCommandPlaceholder";
                 placeholder.transform.SetParent(commandLinePrefab.transform.parent, false);
                 placeholder.transform.SetSiblingIndex(bc.gotoIndex);
+                placeholder.AddComponent<BasicTooltip>().tooltipText = "GoTo command indicator.";
                 var rt = placeholder.AddComponent<RectTransform>();
                 rt.pivot = Vector2.zero;
 
@@ -1733,8 +1783,6 @@ namespace IRSequencer.Gui
                 commandLinePrefab.GetChild("CommandRepeatLabel").SetActive(isRepeatCommand);
                 repeatInputField.gameObject.SetActive(isRepeatCommand);
                 commandLinePrefab.GetChild("CommandRepeatLabel2").SetActive(isRepeatCommand);
-
-
             }
 
             var commandDeleteButton = commandLinePrefab.GetChild("CommandDeleteButton").GetComponent<Button>();
@@ -1833,11 +1881,15 @@ namespace IRSequencer.Gui
                         _controlWindowFader = null;
                     });
 
-            if (_settingsWindow && _settingsWindow.activeSelf)
+            if (_settingsWindow)
             {
                 SequencerSettingsWindowPosition = _settingsWindow.transform.position;
-                _settingsWindowFader.FadeTo(0f, 0.1f);
-                _settingsWindow.SetActive(false);
+                _settingsWindowFader.FadeTo(0f, 0.1f, () => {
+                    _settingsWindow.DestroyGameObjectImmediate();
+                    _settingsWindow = null;
+                    _settingsWindowFader = null;
+                });
+
             }
             EditorLocker.EditorLock(false);
         }
