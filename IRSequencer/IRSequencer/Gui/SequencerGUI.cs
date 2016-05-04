@@ -103,8 +103,10 @@ namespace IRSequencer.Gui
         internal int repeatTimesValue = -1;
 
         internal KSPActionGroup[] stockActionGroups;
+        internal Dictionary<int, string> extendedActionGroups;
         internal List<Dropdown.OptionData> actionGroupsOptions;
-
+        internal List<Dropdown.OptionData> actionGroupsExtendedOptions;
+        
         internal Dictionary<SequencerState, GameObject> _stateUIControls;
         internal Dictionary<Sequence, GameObject> _sequenceUIControls;
         internal Dictionary<BasicCommand, GameObject> _openSequenceCommandControls;
@@ -1248,7 +1250,7 @@ namespace IRSequencer.Gui
             
             var resizeHandler = editorFooterButtons.GetChild("ResizeHandle").AddComponent<PanelResizer>();
             resizeHandler.rectTransform = _editorWindow.transform as RectTransform;
-            resizeHandler.minSize = new Vector2(470, 365);
+            resizeHandler.minSize = new Vector2(470, 450);
             resizeHandler.maxSize = new Vector2(2000, 1600);
 
             var leftPane = _editorWindow.GetChild("WindowContent").GetChild("Panes").GetChild("LeftPane").GetChild("CommandZone");
@@ -1281,8 +1283,17 @@ namespace IRSequencer.Gui
                     }
                 });
 
-            var servoGroupsDropdownList = new List<Dropdown.OptionData>();
+            var servoGroupsFiltered = new List<IRWrapper.IControlGroup>();
+
             foreach (IRWrapper.IControlGroup g in IRWrapper.IRController.ServoGroups)
+            {
+                if (HighLogic.LoadedSceneIsFlight && FlightGlobals.ActiveVessel != g.Vessel)
+                    continue;
+                servoGroupsFiltered.Add(g);
+            }
+
+            var servoGroupsDropdownList = new List<Dropdown.OptionData>();
+            foreach (IRWrapper.IControlGroup g in servoGroupsFiltered)
             {
                 servoGroupsDropdownList.Add(new Dropdown.OptionData(g.Name));
             }
@@ -1295,7 +1306,7 @@ namespace IRSequencer.Gui
             canvas.sortingLayerID = UIMasterController.Instance.appCanvas.sortingLayerID;
 
             var servosDropdownList = new List<Dropdown.OptionData>();
-            foreach (var s in IRWrapper.IRController.ServoGroups[selectedGroupIndex].Servos)
+            foreach (var s in servoGroupsFiltered[selectedGroupIndex].Servos)
             {
                 servosDropdownList.Add(new Dropdown.OptionData(s.Name));
             }
@@ -1308,21 +1319,21 @@ namespace IRSequencer.Gui
             canvas.sortingLayerID = UIMasterController.Instance.appCanvas.sortingLayerID;
 
             var servoHighlighter = servosDropdown.gameObject.AddComponent<ServoHighlighter>();
-            servoHighlighter.servo = IRWrapper.IRController.ServoGroups[selectedGroupIndex].Servos[selectedServoIndex];
+            servoHighlighter.servo = servoGroupsFiltered[selectedGroupIndex].Servos[selectedServoIndex];
 
             servosDropdown.onValueChanged.AddListener(v =>
                 {
                     selectedServoIndex = v;
-                    moveToValue = IRWrapper.IRController.ServoGroups[selectedGroupIndex].Servos[selectedServoIndex].Position;
+                    moveToValue = servoGroupsFiltered[selectedGroupIndex].Servos[selectedServoIndex].Position;
                     moveToInputField.text = string.Format("{0:#0.00}", moveToValue);
-                    servoHighlighter.servo = IRWrapper.IRController.ServoGroups[selectedGroupIndex].Servos[selectedServoIndex];
+                    servoHighlighter.servo = servoGroupsFiltered[selectedGroupIndex].Servos[selectedServoIndex];
                 });
             
             servoGroupsDropdown.onValueChanged.AddListener(v =>
                 {
                     selectedGroupIndex = v;
                     servosDropdownList.Clear();
-                    foreach (var s in IRWrapper.IRController.ServoGroups[selectedGroupIndex].Servos)
+                    foreach (var s in servoGroupsFiltered[selectedGroupIndex].Servos)
                     {
                         servosDropdownList.Add(new Dropdown.OptionData(s.Name));
                     }
@@ -1333,7 +1344,7 @@ namespace IRSequencer.Gui
             var addMoveCommandButton = moveServoTemplate.GetChild("MoveAddButton").GetComponent<Button>();
             addMoveCommandButton.onClick.AddListener(() =>
                 {
-                    var servo = IRWrapper.IRController.ServoGroups[selectedGroupIndex].Servos[selectedServoIndex];
+                    var servo = servoGroupsFiltered[selectedGroupIndex].Servos[selectedServoIndex];
                 
                     var bc = new BasicCommand(servo, moveToValue, moveAtValue);
 
@@ -1362,29 +1373,6 @@ namespace IRSequencer.Gui
                 actionGroupsOptions.Add(new Dropdown.OptionData(a.ToString()));
 
             }
-            /*
-            //now if AGX is installed, list all the groups
-            if (ActionGroupsExtendedAPI.Instance != null && ActionGroupsExtendedAPI.Instance.Installed())
-            {
-                Dictionary<int, string> extendedGroups;
-
-                if (HighLogic.LoadedSceneIsFlight)
-                {
-                    extendedGroups = ActionGroupsExtendedAPI.Instance.GetAssignedGroups(FlightGlobals.ActiveVessel);
-                }
-                else
-                {
-                    extendedGroups = ActionGroupsExtendedAPI.Instance.GetAssignedGroups();
-                }
-
-                foreach (var pair in extendedGroups)
-                {
-                    actionGroupsOptions.Add(new Dropdown.OptionData(pair.Value));
-                }
-
-                //consider creating a separate box for AGX
-            }
-            */
 
             AGToggleDropDown.options = actionGroupsOptions;
             canvas = AGToggleDropDown.template.gameObject.AddOrGetComponent<Canvas>();
@@ -1404,7 +1392,73 @@ namespace IRSequencer.Gui
                     openSequence.commands.Add(bc);
                     guiRebuildPending = true;
                 });
+            
+            //now if AGX is installed, list all the groups
+            if (ActionGroupsExtendedAPI.Instance != null && ActionGroupsExtendedAPI.Instance.Installed())
+            {
+                if (HighLogic.LoadedSceneIsFlight)
+                {
+                    extendedActionGroups = ActionGroupsExtendedAPI.Instance.GetAssignedGroups(FlightGlobals.ActiveVessel);
+                }
+                else
+                {
+                    extendedActionGroups = ActionGroupsExtendedAPI.Instance.GetAssignedGroups();
+                }
 
+                //first list all the stock AGs into global vars
+                if (actionGroupsExtendedOptions == null)
+                    actionGroupsExtendedOptions = new List<Dropdown.OptionData>();
+                else
+                    actionGroupsExtendedOptions.Clear();
+
+                foreach (var pair in extendedActionGroups)
+                {
+                    actionGroupsExtendedOptions.Add(new Dropdown.OptionData(pair.Value));
+                }
+
+                //consider creating a separate box for AGX
+
+                var AGXToggleZone = leftPane.GetChild("AGXToggleZoneHLG");
+                var AGXToggleDropDown = AGXToggleZone.GetChild("AGToggleDetails").GetChild("ActionGroupDropdown").GetComponent<Dropdown>();
+
+                AGXToggleDropDown.options = actionGroupsExtendedOptions;
+                canvas = AGXToggleDropDown.template.gameObject.AddOrGetComponent<Canvas>();
+                canvas.sortingLayerID = UIMasterController.Instance.appCanvas.sortingLayerID;
+
+                AGXToggleDropDown.value = selectedToggleAGX;
+                AGXToggleDropDown.onValueChanged.AddListener(v => selectedToggleAGX = v);
+
+                var addToggleAGXCommandButton = AGXToggleZone.GetChild("AGToggleAddButton").GetComponent<Button>();
+                addToggleAGXCommandButton.onClick.AddListener(() =>
+                    {
+                        var bc = new BasicCommand(selectedToggleAGX);
+                        openSequence.commands.Add(bc);
+                        guiRebuildPending = true;
+                    });
+
+                AGXToggleZone.SetActive(extendedActionGroups.Count > 0);
+
+                var AGXWaitZone = leftPane.GetChild("AGXWaitZoneHLG");
+                var AGXWaitDropDown = AGXWaitZone.GetChild("AGWaitDetails").GetChild("ActionGroupDropdown").GetComponent<Dropdown>();
+
+                AGXWaitDropDown.options = actionGroupsExtendedOptions;
+                canvas = AGXWaitDropDown.template.gameObject.AddOrGetComponent<Canvas>();
+                canvas.sortingLayerID = UIMasterController.Instance.appCanvas.sortingLayerID;
+
+                AGXWaitDropDown.value = selectedWaitAGX;
+                AGXWaitDropDown.onValueChanged.AddListener(v => selectedWaitAGX = v);
+
+                var addWaitAGXCommandButton = AGXWaitZone.GetChild("AGWaitAddButton").GetComponent<Button>();
+                addWaitAGXCommandButton.onClick.AddListener(() =>
+                    {
+                        var bc = new BasicCommand(selectedWaitAGX);
+                        openSequence.commands.Add(bc);
+                        guiRebuildPending = true;
+                    });
+
+                AGXWaitZone.SetActive(extendedActionGroups.Count > 0);
+            }
+            
             var waitForServosAddButton = leftPane.GetChild("WaitForServoZoneHLG").GetChild("WaitForServoAddButton").GetComponent<Button>();
             waitForServosAddButton.onClick.AddListener(() =>
                 {
@@ -1649,6 +1703,8 @@ namespace IRSequencer.Gui
                 var servosDropdownList = new List<Dropdown.OptionData>();
                 foreach (IRWrapper.IControlGroup g in IRWrapper.IRController.ServoGroups)
                 {
+                    if (HighLogic.LoadedSceneIsFlight && FlightGlobals.ActiveVessel != g.Vessel)
+                        continue;
                     allServos.AddRange(g.Servos);
                 }
 
