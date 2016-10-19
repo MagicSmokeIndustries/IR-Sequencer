@@ -62,11 +62,11 @@ namespace IRSequencer.Gui
 
             //don't forget to remove Repeat placeholders from dropzone
             dropZone = draggedItem.transform.parent;
-            var repeatPlaceholder = dropZone.gameObject.GetChild("RepeatCommandPlaceholder").transform;
+            var repeatPlaceholder = dropZone.gameObject.GetChild("RepeatCommandPlaceholder");
             if (repeatPlaceholder)
             {
-                repeatPlaceholder.SetAsLastSibling();
-                repeatPlaceholder.gameObject.SetActive(false);
+                repeatPlaceholder.transform.SetAsLastSibling();
+                repeatPlaceholder.SetActive(false);
             }
 
             startingSiblingIndex = draggedItem.transform.GetSiblingIndex();

@@ -36,12 +36,12 @@ namespace IRSequencer.Gui
 
             var bc = dragHandler.linkedCommand;
 
-            var repeatPlaceholder = dragHandler.dropZone.gameObject.GetChild("RepeatCommandPlaceholder").transform;
+            var repeatPlaceholder = dragHandler.dropZone.gameObject.GetChild("RepeatCommandPlaceholder");
 
             int insertAt = dragHandler.placeholder.transform.GetSiblingIndex();
 
             //repeat placeholder is supposed to be last sibling, we need to ignore it
-            if (insertAt >= repeatPlaceholder.GetSiblingIndex())
+            if (repeatPlaceholder && insertAt >= repeatPlaceholder.transform.GetSiblingIndex())
                 insertAt--;
 
             if (bc == null)
@@ -66,8 +66,8 @@ namespace IRSequencer.Gui
                     //need to reposition command's placeholder
                     if (repeatPlaceholder)
                     {
-                        repeatPlaceholder.SetSiblingIndex(c.gotoIndex);
-                        repeatPlaceholder.gameObject.SetActive(true);
+                        repeatPlaceholder.transform.SetSiblingIndex(c.gotoIndex);
+                        repeatPlaceholder.SetActive(true);
                     }
                         
                 }
