@@ -1,10 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Reflection;
 using UnityEngine;
-using KSP.IO;
 using IRSequencer.API;
 using IRSequencer.Utility;
 using IRSequencer.Core;
@@ -2010,7 +2007,7 @@ namespace IRSequencer.Gui
 
         public void LoadConfigXml()
         {
-            PluginConfiguration config = PluginConfiguration.CreateForType<SequencerGUI>();
+            KSP.IO.PluginConfiguration config = KSP.IO.PluginConfiguration.CreateForType<SequencerGUI>();
             config.load();
 
             SequencerWindowPosition = config.GetValue<Vector3>("SequencerWindowPosition");
@@ -2039,7 +2036,7 @@ namespace IRSequencer.Gui
                 SequencerSettingsWindowPosition = _settingsWindow.transform.position;
             }
 
-            PluginConfiguration config = PluginConfiguration.CreateForType<SequencerGUI>();
+            KSP.IO.PluginConfiguration config = KSP.IO.PluginConfiguration.CreateForType<SequencerGUI>();
             config.SetValue("SequencerWindowPosition", SequencerWindowPosition);
             config.SetValue("SequencerEditorWindowPosition", SequencerEditorWindowPosition);
             config.SetValue("SequencerEditorWindowSize", SequencerEditorWindowSize);
