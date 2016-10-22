@@ -143,10 +143,13 @@ namespace IRSequencer.Gui
             if(!allPrefabsReady)
                 StartCoroutine(LoadBundle(bundlePath + "ir_ui_objects.ksp"));
 
-            var IRAssetsLoaderType = AssemblyLoader.loadedAssemblies
-                .Select(a => a.assembly.GetExportedTypes())
-                .SelectMany(t => t)
-                .FirstOrDefault(t => t.FullName == "InfernalRobotics.Gui.UIAssetsLoader");
+            Type IRAssetsLoaderType = null;
+
+            AssemblyLoader.loadedAssemblies.TypeOperation (t => {
+                if (t.FullName == "InfernalRobotics.Gui.UIAssetsLoader") {
+                    IRAssetsLoaderType = t;
+                }
+            });
 
             var fieldInfo = IRAssetsLoaderType.GetField("iconAssets", BindingFlags.NonPublic | BindingFlags.Static);
 
