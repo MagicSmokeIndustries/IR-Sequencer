@@ -1934,16 +1934,25 @@ namespace IRSequencer.Gui
                         _controlWindowFader = null;
                     });
 
-            if (_settingsWindow)
+            if (_settingsWindowFader)
             {
-                SequencerSettingsWindowPosition = _settingsWindow.transform.position;
-                _settingsWindowFader.FadeTo(0f, 0.1f, () => {
+                if (_settingsWindow.activeSelf)
+                    _settingsWindowFader.FadeTo(0f, 0.1f, () =>
+                        {
+                            SequencerSettingsWindowPosition = _settingsWindow.transform.position;
+                            _settingsWindow.DestroyGameObjectImmediate();
+                            _settingsWindow = null;
+                            _settingsWindowFader = null;
+                        });
+                else
+                {
+                    SequencerSettingsWindowPosition = _settingsWindow.transform.position;
                     _settingsWindow.DestroyGameObjectImmediate();
                     _settingsWindow = null;
                     _settingsWindowFader = null;
-                });
-
+                }
             }
+            
             EditorLocker.EditorLock(false);
         }
 
