@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace IRSequencer.Gui
 {
-    [KSPAddon(KSPAddon.Startup.SpaceCentre, true)]
+    [KSPAddon(KSPAddon.Startup.MainMenu, false)]
     public class UIAssetsLoader : MonoBehaviour
     {
         private AssetBundle IRAssetBundle;
@@ -30,21 +30,6 @@ namespace IRSequencer.Gui
         
         public static bool allPrefabsReady = false;
 
-        public IEnumerator LoadBundle(string location)
-        {
-            while (!Caching.ready)
-                yield return null;
-            using (WWW www = WWW.LoadFromCacheOrDownload(location, 1))
-            {
-                yield return www;
-                IRAssetBundle = www.assetBundle;
-
-                LoadBundleAssets();
-
-                //IRAssetBundle.Unload(false);
-            }
-        }
-        
         private void LoadBundleAssets()
         {
             var prefabs = IRAssetBundle.LoadAllAssets<GameObject>();
@@ -131,18 +116,12 @@ namespace IRSequencer.Gui
 
         public void Start()
         {
-            var assemblyFile = Assembly.GetExecutingAssembly().Location;
-
-            var bundlePath = "file://" + assemblyFile.Replace(new FileInfo(assemblyFile).Name, "").Replace("\\","/") + "../../AssetBundles/";
-
-            Logger.Log("Loading bundles from BundlePath: " + bundlePath, Logger.Level.Debug);
-
+            if (allPrefabsReady)
+                return; //there is no need to reload the prefabs or any other assets.
+            
             //need to clean cache
             Caching.CleanCache();
-
-            if(!allPrefabsReady)
-                StartCoroutine(LoadBundle(bundlePath + "ir_ui_objects.ksp"));
-
+            
             Type IRAssetsLoaderType = null;
 
             AssemblyLoader.loadedAssemblies.TypeOperation (t => {
@@ -151,23 +130,62 @@ namespace IRSequencer.Gui
                 }
             });
 
-            var fieldInfo = IRAssetsLoaderType.GetField("iconAssets", BindingFlags.NonPublic | BindingFlags.Static);
+            var fieldInfo = IRAssetsLoaderType.GetField("IRAssetBundle", BindingFlags.NonPublic | BindingFlags.Static);
+            IRAssetBundle = (AssetBundle)fieldInfo.GetValue(null);
 
+            if (!allPrefabsReady)
+            {
+                if (IRAssetBundle != null)
+                {
+                    LoadBundleAssets();
+                }
+            }
+
+            fieldInfo = IRAssetsLoaderType.GetField("iconAssets", BindingFlags.NonPublic | BindingFlags.Static);
             iconAssets = (List<Texture2D>)fieldInfo.GetValue(null);
 
             fieldInfo = IRAssetsLoaderType.GetField("spriteAssets", BindingFlags.NonPublic | BindingFlags.Static);
-
             spriteAssets = (List<Sprite>)fieldInfo.GetValue(null);
 
         }
 
+        public void Update()
+        {
+            if(!allPrefabsReady)
+            {
+                Type IRAssetsLoaderType = null;
+
+                AssemblyLoader.loadedAssemblies.TypeOperation(t =>
+                {
+                    if (t.FullName == "InfernalRobotics.Gui.UIAssetsLoader")
+                    {
+                        IRAssetsLoaderType = t;
+                    }
+                });
+
+                var fieldInfo = IRAssetsLoaderType.GetField("IRAssetBundle", BindingFlags.NonPublic | BindingFlags.Static);
+                IRAssetBundle = (AssetBundle)fieldInfo.GetValue(null);
+
+                if (IRAssetBundle != null)
+                {
+                    LoadBundleAssets();
+                }
+                
+                fieldInfo = IRAssetsLoaderType.GetField("iconAssets", BindingFlags.NonPublic | BindingFlags.Static);
+                iconAssets = (List<Texture2D>)fieldInfo.GetValue(null);
+
+                fieldInfo = IRAssetsLoaderType.GetField("spriteAssets", BindingFlags.NonPublic | BindingFlags.Static);
+                spriteAssets = (List<Sprite>)fieldInfo.GetValue(null);
+            }
+        }
+
         public void OnDestroy()
         {
-            if(IRAssetBundle)
+            /*if(IRAssetBundle)
             {
                 Logger.Log("Unloading bundle", Logger.Level.Debug);
                 IRAssetBundle.Unload(false);
-            }
+            }*/
         }
     }
 }
